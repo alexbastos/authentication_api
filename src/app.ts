@@ -77,12 +77,7 @@ Authorization: Bearer <access_token>
           name: 'API Support',
         },
       },
-      servers: [
-        {
-          url: `http://localhost:${env.PORT}`,
-          description: 'Development Server',
-        },
-      ],
+
       components: {
         securitySchemes: {
           bearerAuth: {
