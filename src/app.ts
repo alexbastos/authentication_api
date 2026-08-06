@@ -33,7 +33,26 @@ export async function buildApp(env: Env, container: Container): Promise<FastifyI
   });
 
   await app.register(cors, {
-    origin: env.CORS_ORIGIN.split(','),
+    origin: (origin, cb) => {
+      if (!origin) {
+        cb(null, true);
+        return;
+      }
+
+      const allowedOrigins = env.CORS_ORIGIN.split(',');
+      if (allowedOrigins.includes(origin) || allowedOrigins.includes('*')) {
+        cb(null, true);
+        return;
+      }
+
+      // Automatically allow any localhost port for local development
+      if (/^http:\/\/localhost:\d+$/.test(origin)) {
+        cb(null, true);
+        return;
+      }
+
+      cb(new Error("Not allowed by CORS"), false);
+    },
     credentials: true,
   });
 
