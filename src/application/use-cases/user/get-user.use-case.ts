@@ -9,6 +9,7 @@ export interface GetUserOutput {
   email: string;
   role: string;
   status: string;
+  emailVerified: boolean;
   socialProviders: string[];
   createdAt: Date;
   updatedAt: Date;
@@ -29,6 +30,7 @@ export class GetUserUseCase {
       email: user.email,
       role: user.role,
       status: user.status,
+      emailVerified: user.emailVerified,
       socialProviders: user.socialAccounts.map((sa) => sa.provider),
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,

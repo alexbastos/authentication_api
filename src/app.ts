@@ -151,7 +151,7 @@ Authorization: Bearer <access_token>
   });
 
   // ─── Routes ─────────────────────────────────────────────────────────
-  registerAuthRoutes(app, container.authController);
+  registerAuthRoutes(app, container.authController, container.authMiddleware);
   registerUserRoutes(app, container.userController, container.authMiddleware);
   registerClientAppRoutes(app, container.clientAppController, container.authMiddleware);
 
@@ -169,12 +169,16 @@ Authorization: Bearer <access_token>
         REFRESH_TOKEN_REUSED: 401,
         USER_INACTIVE: 403,
         FORBIDDEN: 403,
+        EMAIL_NOT_VERIFIED: 403,
+        ACCOUNT_LOCKED: 429,
         USER_ALREADY_EXISTS: 409,
         CLIENT_APP_ALREADY_EXISTS: 409,
         USER_NOT_FOUND: 404,
         CLIENT_APP_NOT_FOUND: 404,
         WEAK_PASSWORD: 400,
         SOCIAL_AUTH_FAILED: 400,
+        INVALID_VERIFICATION_TOKEN: 400,
+        EXPIRED_VERIFICATION_TOKEN: 400,
       };
 
       const statusCode = statusMap[error.code] ?? 500;

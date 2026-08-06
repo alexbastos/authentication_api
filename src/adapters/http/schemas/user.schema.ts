@@ -10,6 +10,7 @@ export const UserResponseSchema = Type.Object({
   email: Type.String({ format: 'email' }),
   role: Type.String({ enum: ['USER', 'ADMIN'] }),
   status: Type.String({ enum: ['ACTIVE', 'INACTIVE'] }),
+  emailVerified: Type.Boolean({ description: 'Whether the user email has been verified' }),
   socialProviders: Type.Array(Type.String()),
   createdAt: Type.String({ format: 'date-time' }),
   updatedAt: Type.String({ format: 'date-time' }),

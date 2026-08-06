@@ -101,3 +101,34 @@ export class ClientAppAlreadyExistsError extends DomainError {
     super(`Client application "${name}" already exists`, 'CLIENT_APP_ALREADY_EXISTS');
   }
 }
+
+// ─── Email Verification Errors ───────────────────────────────────────────
+
+export class EmailNotVerifiedError extends DomainError {
+  constructor() {
+    super('Email address has not been verified. Please check your inbox.', 'EMAIL_NOT_VERIFIED');
+  }
+}
+
+export class InvalidVerificationTokenError extends DomainError {
+  constructor() {
+    super('Invalid or already used verification token', 'INVALID_VERIFICATION_TOKEN');
+  }
+}
+
+export class ExpiredVerificationTokenError extends DomainError {
+  constructor() {
+    super('Verification token has expired. Please request a new one.', 'EXPIRED_VERIFICATION_TOKEN');
+  }
+}
+
+// ─── Brute Force Protection Errors ──────────────────────────────────────
+
+export class AccountLockedError extends DomainError {
+  constructor(minutesRemaining: number) {
+    super(
+      `Account temporarily locked due to too many failed login attempts. Try again in ${minutesRemaining} minute(s).`,
+      'ACCOUNT_LOCKED',
+    );
+  }
+}

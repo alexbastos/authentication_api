@@ -38,6 +38,19 @@ const envSchema = z.object({
 
   // Bcrypt
   BCRYPT_SALT_ROUNDS: z.coerce.number().default(12),
+
+  // Application URL (used for email links)
+  APP_URL: z.string().default('http://localhost:3000'),
+
+  // Email Verification
+  VERIFICATION_TOKEN_EXPIRY_HOURS: z.coerce.number().default(24),
+
+  // Password Reset
+  PASSWORD_RESET_TOKEN_EXPIRY_HOURS: z.coerce.number().default(1),
+
+  // Brute Force Protection
+  LOGIN_MAX_ATTEMPTS: z.coerce.number().default(5),
+  LOGIN_LOCKOUT_MINUTES: z.coerce.number().default(15),
 });
 
 export type Env = z.infer<typeof envSchema>;

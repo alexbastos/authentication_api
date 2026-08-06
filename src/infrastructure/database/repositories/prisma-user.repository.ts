@@ -55,6 +55,7 @@ export class PrismaUserRepository implements IUserRepository {
         name: data.name,
         email: data.email,
         passwordHash: data.passwordHash,
+        emailVerified: data.emailVerified,
         role: data.role as any,
         status: data.status as any,
         socialAccounts: {
@@ -78,6 +79,7 @@ export class PrismaUserRepository implements IUserRepository {
         name: data.name,
         email: data.email,
         passwordHash: data.passwordHash,
+        emailVerified: data.emailVerified,
         role: data.role as any,
         status: data.status as any,
       },
@@ -139,6 +141,7 @@ export class PrismaUserRepository implements IUserRepository {
       name: record.name,
       email: record.email,
       passwordHash: record.passwordHash,
+      emailVerified: record.emailVerified ?? false,
       role: record.role as Role,
       status: record.status as UserStatus,
       socialAccounts: (record.socialAccounts || []).map((sa: any) => ({

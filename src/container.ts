@@ -8,11 +8,13 @@ import type { Env } from './infrastructure/config/env.js';
 import { PrismaUserRepository } from './infrastructure/database/repositories/prisma-user.repository.js';
 import { PrismaRefreshTokenRepository } from './infrastructure/database/repositories/prisma-refresh-token.repository.js';
 import { PrismaClientAppRepository } from './infrastructure/database/repositories/prisma-client-app.repository.js';
+import { PrismaVerificationTokenRepository } from './infrastructure/database/repositories/prisma-verification-token.repository.js';
 import { RedisCacheProvider } from './infrastructure/cache/redis-cache.provider.js';
 import { BcryptHasher } from './infrastructure/security/bcrypt-hasher.js';
 import { JoseTokenManager } from './infrastructure/security/jose-token-manager.js';
 import { GoogleOAuthProvider } from './infrastructure/social/google-oauth.provider.js';
 import { SocialAuthProviderRegistry } from './infrastructure/social/social-auth-registry.js';
+import { ConsoleEmailService } from './infrastructure/email/console-email.service.js';
 
 // Use Cases
 import { AuthenticateUserUseCase } from './application/use-cases/auth/authenticate-user.use-case.js';
@@ -20,6 +22,11 @@ import { AuthenticateSocialUseCase } from './application/use-cases/auth/authenti
 import { ValidateTokenUseCase } from './application/use-cases/auth/validate-token.use-case.js';
 import { RefreshTokenUseCase } from './application/use-cases/auth/refresh-token.use-case.js';
 import { RevokeTokenUseCase } from './application/use-cases/auth/revoke-token.use-case.js';
+import { VerifyEmailUseCase } from './application/use-cases/auth/verify-email.use-case.js';
+import { ResendVerificationEmailUseCase } from './application/use-cases/auth/resend-verification-email.use-case.js';
+import { RequestPasswordResetUseCase } from './application/use-cases/auth/request-password-reset.use-case.js';
+import { ResetPasswordUseCase } from './application/use-cases/auth/reset-password.use-case.js';
+import { ChangePasswordUseCase } from './application/use-cases/auth/change-password.use-case.js';
 import { RegisterUserUseCase } from './application/use-cases/user/register-user.use-case.js';
 import { GetUserUseCase } from './application/use-cases/user/get-user.use-case.js';
 import { UpdateUserUseCase } from './application/use-cases/user/update-user.use-case.js';
@@ -84,14 +91,20 @@ export function createContainer(env: Env): Container {
     socialRegistry.register(new GoogleOAuthProvider(env.GOOGLE_CLIENT_ID));
   }
 
+  // Email service (console for dev, swap to SES/SendGrid for prod)
+  const emailService = new ConsoleEmailService();
+
   // ─── Repositories ───────────────────────────────────────────────────
   const userRepository = new PrismaUserRepository(prisma);
   const refreshTokenRepository = new PrismaRefreshTokenRepository(prisma);
   const clientAppRepository = new PrismaClientAppRepository(prisma);
+  const verificationTokenRepository = new PrismaVerificationTokenRepository(prisma);
 
   // ─── Use Cases ──────────────────────────────────────────────────────
   const authenticateUserUC = new AuthenticateUserUseCase(
-    userRepository, refreshTokenRepository, hasher, tokenManager, env.JWT_REFRESH_TOKEN_EXPIRY_DAYS,
+    userRepository, refreshTokenRepository, hasher, tokenManager,
+    env.JWT_REFRESH_TOKEN_EXPIRY_DAYS,
+    redis, env.LOGIN_MAX_ATTEMPTS, env.LOGIN_LOCKOUT_MINUTES,
   );
   const authenticateSocialUC = new AuthenticateSocialUseCase(
     userRepository, refreshTokenRepository, tokenManager, socialRegistry, env.JWT_REFRESH_TOKEN_EXPIRY_DAYS,
@@ -101,7 +114,20 @@ export function createContainer(env: Env): Container {
     userRepository, refreshTokenRepository, tokenManager, env.JWT_REFRESH_TOKEN_EXPIRY_DAYS,
   );
   const revokeTokenUC = new RevokeTokenUseCase(refreshTokenRepository, tokenManager, redis);
-  const registerUserUC = new RegisterUserUseCase(userRepository, hasher);
+  const registerUserUC = new RegisterUserUseCase(
+    userRepository, hasher, verificationTokenRepository, emailService,
+  );
+  const verifyEmailUC = new VerifyEmailUseCase(userRepository, verificationTokenRepository);
+  const resendVerificationEmailUC = new ResendVerificationEmailUseCase(
+    userRepository, verificationTokenRepository, emailService,
+  );
+  const requestPasswordResetUC = new RequestPasswordResetUseCase(
+    userRepository, verificationTokenRepository, emailService,
+  );
+  const resetPasswordUC = new ResetPasswordUseCase(
+    userRepository, verificationTokenRepository, refreshTokenRepository, hasher,
+  );
+  const changePasswordUC = new ChangePasswordUseCase(userRepository, hasher);
   const getUserUC = new GetUserUseCase(userRepository);
   const updateUserUC = new UpdateUserUseCase(userRepository, hasher);
   const deleteUserUC = new DeleteUserUseCase(userRepository, refreshTokenRepository);
@@ -116,6 +142,9 @@ export function createContainer(env: Env): Container {
   const authController = new AuthController(
     authenticateUserUC, authenticateSocialUC, validateTokenUC,
     refreshTokenUC, revokeTokenUC, registerUserUC, tokenManager,
+    verifyEmailUC, resendVerificationEmailUC,
+    requestPasswordResetUC, resetPasswordUC, changePasswordUC,
+    env.APP_URL, env.VERIFICATION_TOKEN_EXPIRY_HOURS, env.PASSWORD_RESET_TOKEN_EXPIRY_HOURS,
   );
   const userController = new UserController(getUserUC, updateUserUC, deleteUserUC, listUsersUC);
   const clientAppController = new ClientAppController(registerClientAppUC, listClientAppsUC);

@@ -2,12 +2,15 @@
 
 import type { IUserRepository } from '../../../domain/repositories/user.repository.js';
 import type { IHasher } from '../../ports/hasher.port.js';
+import type { IVerificationTokenRepository } from '../../../domain/repositories/verification-token.repository.js';
+import type { IEmailService } from '../../ports/email.port.js';
 import { User } from '../../../domain/entities/user.entity.js';
 import { Role, UserStatus } from '../../../domain/entities/role.entity.js';
 import {
   UserAlreadyExistsError,
   WeakPasswordError,
 } from '../../../domain/errors/domain-errors.js';
+import { SendVerificationEmailUseCase } from '../auth/send-verification-email.use-case.js';
 import { v4 as uuidv4 } from 'uuid';
 
 export interface RegisterUserInput {
@@ -15,6 +18,8 @@ export interface RegisterUserInput {
   email: string;
   password: string;
   role?: Role;
+  appUrl: string;
+  verificationTokenExpiryHours: number;
 }
 
 export interface RegisterUserOutput {
@@ -23,14 +28,25 @@ export interface RegisterUserOutput {
   email: string;
   role: Role;
   status: UserStatus;
+  emailVerified: boolean;
   createdAt: Date;
 }
 
 export class RegisterUserUseCase {
+  private readonly sendVerificationEmailUC: SendVerificationEmailUseCase;
+
   constructor(
     private readonly userRepository: IUserRepository,
     private readonly hasher: IHasher,
-  ) {}
+    verificationTokenRepository: IVerificationTokenRepository,
+    emailService: IEmailService,
+  ) {
+    this.sendVerificationEmailUC = new SendVerificationEmailUseCase(
+      userRepository,
+      verificationTokenRepository,
+      emailService,
+    );
+  }
 
   async execute(input: RegisterUserInput): Promise<RegisterUserOutput> {
     // 1. Validate password complexity
@@ -45,13 +61,14 @@ export class RegisterUserUseCase {
     // 3. Hash password
     const passwordHash = await this.hasher.hash(input.password);
 
-    // 4. Create user entity
+    // 4. Create user entity (emailVerified starts as false)
     const now = new Date();
     const user = new User({
       id: uuidv4(),
       name: input.name,
       email: input.email.toLowerCase().trim(),
       passwordHash,
+      emailVerified: false,
       role: input.role ?? Role.USER,
       status: UserStatus.ACTIVE,
       socialAccounts: [],
@@ -61,12 +78,25 @@ export class RegisterUserUseCase {
 
     const createdUser = await this.userRepository.create(user);
 
+    // 5. Send verification email (non-blocking — failure here shouldn't break registration)
+    try {
+      await this.sendVerificationEmailUC.execute({
+        userId: createdUser.id,
+        appUrl: input.appUrl,
+        expiryHours: input.verificationTokenExpiryHours,
+      });
+    } catch (err) {
+      // Log but don't fail registration if email sending fails
+      console.error('[RegisterUser] Failed to send verification email:', err);
+    }
+
     return {
       id: createdUser.id,
       name: createdUser.name,
       email: createdUser.email,
       role: createdUser.role,
       status: createdUser.status,
+      emailVerified: createdUser.emailVerified,
       createdAt: createdUser.createdAt,
     };
   }

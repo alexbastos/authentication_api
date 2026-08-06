@@ -81,6 +81,7 @@ export class AuthenticateSocialUseCase {
           name: socialUserInfo.name,
           email: socialUserInfo.email,
           passwordHash: null, // Social users don't have passwords
+          emailVerified: true, // Social providers already verified the email
           role: Role.USER,
           status: UserStatus.ACTIVE,
           socialAccounts: [

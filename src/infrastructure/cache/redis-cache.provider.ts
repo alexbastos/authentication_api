@@ -45,6 +45,15 @@ export class RedisCacheProvider implements ICacheProvider {
     return result === 1;
   }
 
+  async increment(key: string, ttlSeconds: number): Promise<number> {
+    const count = await this.client.incr(key);
+    // Set TTL only when it's a new key (count === 1) to avoid resetting the window
+    if (count === 1) {
+      await this.client.expire(key, ttlSeconds);
+    }
+    return count;
+  }
+
   async disconnect(): Promise<void> {
     await this.client.quit();
   }

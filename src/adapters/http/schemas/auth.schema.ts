@@ -12,6 +12,10 @@ export const ErrorResponseSchema = Type.Object({
   message: Type.String(),
 });
 
+export const MessageResponseSchema = Type.Object({
+  message: Type.String({ description: 'Human-readable response message' }),
+});
+
 export const TokenResponseSchema = Type.Object({
   accessToken: Type.String({ description: 'JWT access token (RS256, 15min TTL)' }),
   refreshToken: Type.String({ description: 'Refresh token for token renewal' }),
@@ -20,6 +24,7 @@ export const TokenResponseSchema = Type.Object({
     name: Type.String(),
     email: Type.String({ format: 'email' }),
     role: Type.String({ enum: ['USER', 'ADMIN'] }),
+    emailVerified: Type.Boolean(),
   }),
 });
 
@@ -49,8 +54,49 @@ export const RegisterResponseSchema = Type.Object({
   email: Type.String(),
   role: Type.String(),
   status: Type.String(),
+  emailVerified: Type.Boolean({ description: 'False until the user confirms their email' }),
   createdAt: Type.String({ format: 'date-time' }),
 });
+
+// ─── Email Verification ─────────────────────────────────────────────────
+
+export const VerifyEmailBodySchema = Type.Object({
+  token: Type.String({ description: 'Verification token received by email' }),
+});
+export type VerifyEmailBody = Static<typeof VerifyEmailBodySchema>;
+
+// ─── Resend Verification Email ───────────────────────────────────────────
+
+// No body needed — authenticated via Bearer token
+
+// ─── Forgot Password ─────────────────────────────────────────────────────
+
+export const ForgotPasswordBodySchema = Type.Object({
+  email: Type.String({ format: 'email', description: 'Email address of the account to recover' }),
+});
+export type ForgotPasswordBody = Static<typeof ForgotPasswordBodySchema>;
+
+// ─── Reset Password ──────────────────────────────────────────────────────
+
+export const ResetPasswordBodySchema = Type.Object({
+  token: Type.String({ description: 'Password reset token received by email' }),
+  newPassword: Type.String({
+    minLength: 8,
+    description: 'New password (must meet complexity requirements)',
+  }),
+});
+export type ResetPasswordBody = Static<typeof ResetPasswordBodySchema>;
+
+// ─── Change Password ─────────────────────────────────────────────────────
+
+export const ChangePasswordBodySchema = Type.Object({
+  currentPassword: Type.String({ minLength: 1, description: 'Current account password' }),
+  newPassword: Type.String({
+    minLength: 8,
+    description: 'New password (must meet complexity requirements)',
+  }),
+});
+export type ChangePasswordBody = Static<typeof ChangePasswordBodySchema>;
 
 // ─── Social Login ───────────────────────────────────────────────────────
 

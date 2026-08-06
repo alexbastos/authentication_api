@@ -16,6 +16,7 @@ export interface UserProps {
   name: string;
   email: string;
   passwordHash: string | null;
+  emailVerified: boolean;
   role: Role;
   status: UserStatus;
   socialAccounts: ProviderInfo[];
@@ -28,6 +29,7 @@ export class User {
   private _name: string;
   private _email: string;
   private _passwordHash: string | null;
+  private _emailVerified: boolean;
   private _role: Role;
   private _status: UserStatus;
   private _socialAccounts: ProviderInfo[];
@@ -39,6 +41,7 @@ export class User {
     this._name = props.name;
     this._email = props.email;
     this._passwordHash = props.passwordHash;
+    this._emailVerified = props.emailVerified;
     this._role = props.role;
     this._status = props.status;
     this._socialAccounts = props.socialAccounts;
@@ -58,6 +61,10 @@ export class User {
 
   get passwordHash(): string | null {
     return this._passwordHash;
+  }
+
+  get emailVerified(): boolean {
+    return this._emailVerified;
   }
 
   get role(): Role {
@@ -111,6 +118,11 @@ export class User {
     this.touch();
   }
 
+  verifyEmail(): void {
+    this._emailVerified = true;
+    this.touch();
+  }
+
   updateRole(role: Role): void {
     this._role = role;
     this.touch();
@@ -143,6 +155,7 @@ export class User {
       name: this._name,
       email: this._email,
       passwordHash: this._passwordHash,
+      emailVerified: this._emailVerified,
       role: this._role,
       status: this._status,
       socialAccounts: [...this._socialAccounts],
