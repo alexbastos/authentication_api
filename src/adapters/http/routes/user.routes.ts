@@ -18,10 +18,10 @@ export function registerUserRoutes(
   controller: UserController,
   authMiddleware: preHandlerHookHandler,
 ) {
-  // ─── GET /api/v1/users/me ───────────────────────────────────────────
+  // ─── GET /authentication_api/api/v1/users/me ───────────────────────────────────────────
   app.route({
     method: 'GET',
-    url: '/api/v1/users/me',
+    url: '/authentication_api/api/v1/users/me',
     preHandler: [authMiddleware],
     schema: {
       tags: ['Users'],
@@ -36,10 +36,10 @@ export function registerUserRoutes(
     handler: (request: FastifyRequest, reply: FastifyReply) => controller.getMe(request, reply),
   });
 
-  // ─── GET /api/v1/users ──────────────────────────────────────────────
+  // ─── GET /authentication_api/api/v1/users ──────────────────────────────────────────────
   app.route({
     method: 'GET',
-    url: '/api/v1/users',
+    url: '/authentication_api/api/v1/users',
     preHandler: [authMiddleware, createRoleMiddleware(Role.ADMIN)],
     schema: {
       tags: ['Users'],
@@ -56,10 +56,10 @@ export function registerUserRoutes(
     handler: (request: FastifyRequest, reply: FastifyReply) => controller.list(request as any, reply),
   });
 
-  // ─── GET /api/v1/users/:id ──────────────────────────────────────────
+  // ─── GET /authentication_api/api/v1/users/:id ──────────────────────────────────────────
   app.route({
     method: 'GET',
-    url: '/api/v1/users/:id',
+    url: '/authentication_api/api/v1/users/:id',
     preHandler: [authMiddleware],
     schema: {
       tags: ['Users'],
@@ -76,10 +76,10 @@ export function registerUserRoutes(
     handler: (request: FastifyRequest, reply: FastifyReply) => controller.getById(request as any, reply),
   });
 
-  // ─── PUT /api/v1/users/:id ──────────────────────────────────────────
+  // ─── PUT /authentication_api/api/v1/users/:id ──────────────────────────────────────────
   app.route({
     method: 'PUT',
-    url: '/api/v1/users/:id',
+    url: '/authentication_api/api/v1/users/:id',
     preHandler: [authMiddleware],
     schema: {
       tags: ['Users'],
@@ -98,10 +98,10 @@ export function registerUserRoutes(
     handler: (request: FastifyRequest, reply: FastifyReply) => controller.update(request as any, reply),
   });
 
-  // ─── DELETE /api/v1/users/:id ───────────────────────────────────────
+  // ─── DELETE /authentication_api/api/v1/users/:id ───────────────────────────────────────
   app.route({
     method: 'DELETE',
-    url: '/api/v1/users/:id',
+    url: '/authentication_api/api/v1/users/:id',
     preHandler: [authMiddleware],
     schema: {
       tags: ['Users'],

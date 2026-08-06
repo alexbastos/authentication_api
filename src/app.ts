@@ -70,7 +70,7 @@ Authorization: Bearer <access_token>
 ## Token Strategy
 - **Access Token**: JWT RS256, 15-minute TTL
 - **Refresh Token**: Opaque token, 7-day TTL with rotation
-- **JWKS**: Public key available at \`/api/v1/auth/.well-known/jwks.json\`
+- **JWKS**: Public key available at \`/authentication_api/api/v1/auth/.well-known/jwks.json\`
         `.trim(),
         version: '1.0.0',
         contact: {
@@ -84,7 +84,7 @@ Authorization: Bearer <access_token>
             type: 'http',
             scheme: 'bearer',
             bearerFormat: 'JWT',
-            description: 'JWT access token obtained from /api/v1/auth/login',
+            description: 'JWT access token obtained from /authentication_api/api/v1/auth/login',
           },
         },
       },
@@ -100,7 +100,7 @@ Authorization: Bearer <access_token>
   });
 
   await app.register(swaggerUi, {
-    routePrefix: '/docs',
+    routePrefix: '/docs/authentication_api',
     uiConfig: {
       docExpansion: 'list',
       deepLinking: true,
@@ -109,7 +109,7 @@ Authorization: Bearer <access_token>
   });
 
   // ─── Health Check ───────────────────────────────────────────────────
-  app.get('/health', {
+  app.get('/health/authentication_api', {
     schema: {
       tags: ['Health'],
       summary: 'Health check',

@@ -16,10 +16,10 @@ export function registerClientAppRoutes(
   controller: ClientAppController,
   authMiddleware: preHandlerHookHandler,
 ) {
-  // ─── POST /api/v1/client-apps ───────────────────────────────────────
+  // ─── POST /authentication_api/api/v1/client-apps ───────────────────────────────────────
   app.route({
     method: 'POST',
-    url: '/api/v1/client-apps',
+    url: '/authentication_api/api/v1/client-apps',
     preHandler: [authMiddleware, createRoleMiddleware(Role.ADMIN)],
     schema: {
       tags: ['Client Apps'],
@@ -36,10 +36,10 @@ export function registerClientAppRoutes(
     handler: (request: FastifyRequest, reply: FastifyReply) => controller.register(request as any, reply),
   });
 
-  // ─── GET /api/v1/client-apps ────────────────────────────────────────
+  // ─── GET /authentication_api/api/v1/client-apps ────────────────────────────────────────
   app.route({
     method: 'GET',
-    url: '/api/v1/client-apps',
+    url: '/authentication_api/api/v1/client-apps',
     preHandler: [authMiddleware, createRoleMiddleware(Role.ADMIN)],
     schema: {
       tags: ['Client Apps'],

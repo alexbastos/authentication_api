@@ -22,8 +22,8 @@ export function registerAuthRoutes(
   app: FastifyInstance,
   controller: AuthController,
 ) {
-  // ─── POST /api/v1/auth/register ─────────────────────────────────────
-  app.post('/api/v1/auth/register', {
+  // ─── POST /authentication_api/api/v1/auth/register ─────────────────────────────────────
+  app.post('/authentication_api/api/v1/auth/register', {
     schema: {
       tags: ['Auth'],
       summary: 'Register a new user',
@@ -38,8 +38,8 @@ export function registerAuthRoutes(
     handler: controller.register.bind(controller),
   });
 
-  // ─── POST /api/v1/auth/login ────────────────────────────────────────
-  app.post('/api/v1/auth/login', {
+  // ─── POST /authentication_api/api/v1/auth/login ────────────────────────────────────────
+  app.post('/authentication_api/api/v1/auth/login', {
     schema: {
       tags: ['Auth'],
       summary: 'Login with email and password',
@@ -53,8 +53,8 @@ export function registerAuthRoutes(
     handler: controller.login.bind(controller),
   });
 
-  // ─── POST /api/v1/auth/login/social ─────────────────────────────────
-  app.post('/api/v1/auth/login/social', {
+  // ─── POST /authentication_api/api/v1/auth/login/social ─────────────────────────────────
+  app.post('/authentication_api/api/v1/auth/login/social', {
     schema: {
       tags: ['Auth', 'Social Login'],
       summary: 'Login with social provider (Google, Apple, etc.)',
@@ -68,8 +68,8 @@ export function registerAuthRoutes(
     handler: controller.socialLogin.bind(controller),
   });
 
-  // ─── POST /api/v1/auth/refresh ──────────────────────────────────────
-  app.post('/api/v1/auth/refresh', {
+  // ─── POST /authentication_api/api/v1/auth/refresh ──────────────────────────────────────
+  app.post('/authentication_api/api/v1/auth/refresh', {
     schema: {
       tags: ['Auth'],
       summary: 'Refresh access token',
@@ -83,8 +83,8 @@ export function registerAuthRoutes(
     handler: controller.refresh.bind(controller),
   });
 
-  // ─── POST /api/v1/auth/logout ───────────────────────────────────────
-  app.post('/api/v1/auth/logout', {
+  // ─── POST /authentication_api/api/v1/auth/logout ───────────────────────────────────────
+  app.post('/authentication_api/api/v1/auth/logout', {
     schema: {
       tags: ['Auth'],
       summary: 'Logout (revoke tokens)',
@@ -99,8 +99,8 @@ export function registerAuthRoutes(
     handler: controller.logout.bind(controller),
   });
 
-  // ─── POST /api/v1/auth/validate ─────────────────────────────────────
-  app.post('/api/v1/auth/validate', {
+  // ─── POST /authentication_api/api/v1/auth/validate ─────────────────────────────────────
+  app.post('/authentication_api/api/v1/auth/validate', {
     schema: {
       tags: ['Auth', 'API Gateway'],
       summary: 'Validate a JWT token',
@@ -114,8 +114,8 @@ export function registerAuthRoutes(
     handler: controller.validate.bind(controller),
   });
 
-  // ─── GET /api/v1/auth/.well-known/jwks.json ─────────────────────────
-  app.get('/api/v1/auth/.well-known/jwks.json', {
+  // ─── GET /authentication_api/api/v1/auth/.well-known/jwks.json ─────────────────────────
+  app.get('/authentication_api/api/v1/auth/.well-known/jwks.json', {
     schema: {
       tags: ['Auth', 'OIDC'],
       summary: 'JSON Web Key Set (JWKS)',

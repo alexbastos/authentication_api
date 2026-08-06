@@ -26,7 +26,7 @@ async function main() {
     await app.listen({ port: env.PORT, host: env.HOST });
     app.log.info(`🚀 Server running at http://${env.HOST}:${env.PORT}`);
     app.log.info(`📚 Swagger UI at http://localhost:${env.PORT}/docs`);
-    app.log.info(`🔑 JWKS at http://localhost:${env.PORT}/api/v1/auth/.well-known/jwks.json`);
+    app.log.info(`🔑 JWKS at http://localhost:${env.PORT}/authentication_api/api/v1/auth/.well-known/jwks.json`);
   } catch (err) {
     app.log.error(err, 'Failed to start server');
     await container.shutdown();
