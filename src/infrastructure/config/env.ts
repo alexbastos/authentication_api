@@ -42,6 +42,11 @@ const envSchema = z.object({
   // Application URL (used for email links)
   APP_URL: z.string().default('http://localhost:3000'),
 
+  // Email Configuration
+  EMAIL_PROVIDER: z.enum(['console', 'ses']).default('console'),
+  EMAIL_FROM_ADDRESS: z.string().default('capcodesolucoes@gmail.com'),
+  AWS_REGION: z.string().default('us-east-1'),
+
   // Email Verification
   VERIFICATION_TOKEN_EXPIRY_HOURS: z.coerce.number().default(24),
 

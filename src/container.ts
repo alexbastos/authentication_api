@@ -15,7 +15,7 @@ import { JoseTokenManager } from './infrastructure/security/jose-token-manager.j
 import { GoogleOAuthProvider } from './infrastructure/social/google-oauth.provider.js';
 import { SocialAuthProviderRegistry } from './infrastructure/social/social-auth-registry.js';
 import { ConsoleEmailService } from './infrastructure/email/console-email.service.js';
-
+import { AwsSesEmailService } from './infrastructure/email/aws-ses-email.service.js';
 // Use Cases
 import { AuthenticateUserUseCase } from './application/use-cases/auth/authenticate-user.use-case.js';
 import { AuthenticateSocialUseCase } from './application/use-cases/auth/authenticate-social.use-case.js';
@@ -91,8 +91,10 @@ export function createContainer(env: Env): Container {
     socialRegistry.register(new GoogleOAuthProvider(env.GOOGLE_CLIENT_ID));
   }
 
-  // Email service (console for dev, swap to SES/SendGrid for prod)
-  const emailService = new ConsoleEmailService();
+  // Email service (console for dev, SES for prod)
+  const emailService = env.EMAIL_PROVIDER === 'ses'
+    ? new AwsSesEmailService(env.EMAIL_FROM_ADDRESS, env.APP_URL, env.AWS_REGION)
+    : new ConsoleEmailService();
 
   // ─── Repositories ───────────────────────────────────────────────────
   const userRepository = new PrismaUserRepository(prisma);
