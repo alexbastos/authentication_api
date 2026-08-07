@@ -18,6 +18,7 @@ import type {
   LoginBody, RegisterBody, SocialLoginBody, RefreshTokenBody,
   LogoutBody, ValidateTokenBody, VerifyEmailBody,
   ForgotPasswordBody, ResetPasswordBody, ChangePasswordBody,
+  ResendVerificationBody,
 } from '../schemas/auth.schema.js';
 import { SocialProvider } from '../../../domain/entities/role.entity.js';
 
@@ -114,9 +115,9 @@ export class AuthController {
     return reply.status(200).send(result);
   }
 
-  async resendVerification(request: FastifyRequest, reply: FastifyReply) {
+  async resendVerification(request: FastifyRequest<{ Body: ResendVerificationBody }>, reply: FastifyReply) {
     const result = await this.resendVerificationEmailUC.execute({
-      userId: request.user!.sub,
+      email: request.body.email,
       appUrl: this.appUrl,
       expiryHours: this.verificationTokenExpiryHours,
     });

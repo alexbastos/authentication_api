@@ -67,7 +67,10 @@ export type VerifyEmailBody = Static<typeof VerifyEmailBodySchema>;
 
 // ─── Resend Verification Email ───────────────────────────────────────────
 
-// No body needed — authenticated via Bearer token
+export const ResendVerificationBodySchema = Type.Object({
+  email: Type.String({ format: 'email', description: 'User email address' }),
+});
+export type ResendVerificationBody = Static<typeof ResendVerificationBodySchema>;
 
 // ─── Forgot Password ─────────────────────────────────────────────────────
 

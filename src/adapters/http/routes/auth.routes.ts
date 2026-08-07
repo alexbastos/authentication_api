@@ -21,6 +21,7 @@ import {
   ForgotPasswordBodySchema,
   ResetPasswordBodySchema,
   ChangePasswordBodySchema,
+  ResendVerificationBodySchema,
 } from '../schemas/auth.schema.js';
 
 export function registerAuthRoutes(
@@ -93,16 +94,14 @@ export function registerAuthRoutes(
 
   // ─── POST /authentication_api/api/v1/auth/resend-verification ──────────────────────────
   app.post('/authentication_api/api/v1/auth/resend-verification', {
-    preHandler: [authMiddleware],
     schema: {
       tags: ['Auth', 'Email Verification'],
       summary: 'Resend verification email',
-      description: 'Resends the verification email to the authenticated user. Requires Bearer token.',
+      description: 'Resends the verification email to the given address. Always returns success to prevent user enumeration.',
+      body: ResendVerificationBodySchema,
       response: {
         200: MessageResponseSchema,
-        401: ErrorResponseSchema,
       },
-      security: [{ bearerAuth: [] }],
     },
     handler: controller.resendVerification.bind(controller),
   });
