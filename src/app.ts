@@ -13,6 +13,19 @@ import { registerAuthRoutes } from './adapters/http/routes/auth.routes.js';
 import { registerUserRoutes } from './adapters/http/routes/user.routes.js';
 import { registerClientAppRoutes } from './adapters/http/routes/client-app.routes.js';
 import { DomainError } from './domain/errors/domain-errors.js';
+import fs from 'node:fs';
+import path from 'node:path';
+
+let versionData = { branch: 'local-dev', commit: 'untracked', date: new Date().toISOString() };
+try {
+  const versionPath = path.resolve(__dirname, './version.json');
+  if (fs.existsSync(versionPath)) {
+    versionData = JSON.parse(fs.readFileSync(versionPath, 'utf8'));
+  }
+} catch (e) {
+  // Silent fallback
+}
+
 
 export async function buildApp(env: Env, container: Container): Promise<FastifyInstance> {
   const app = Fastify({
@@ -69,6 +82,13 @@ export async function buildApp(env: Env, container: Container): Promise<FastifyI
       info: {
         title: 'Authentication API — Identity Provider',
         description: `
+**🚀 Versão Atual da API:**
+- **Branch:** \`${versionData.branch}\`
+- **Commit:** \`${versionData.commit}\`
+- **Data do Build:** \`${versionData.date}\`
+
+---
+
 ## Overview
 Centralized Identity Provider (IdP) microservice built with **Clean Architecture**.
 
