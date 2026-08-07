@@ -16,9 +16,9 @@ import { DomainError } from './domain/errors/domain-errors.js';
 import fs from 'node:fs';
 import path from 'node:path';
 
-let versionData = { branch: 'local-dev', commit: 'untracked', date: new Date().toISOString() };
+let versionData = { branch: 'local-dev', commit: 'untracked', date: new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }) };
 try {
-  const versionPath = path.resolve(__dirname, './version.json');
+  const versionPath = path.resolve(process.cwd(), 'version.json');
   if (fs.existsSync(versionPath)) {
     versionData = JSON.parse(fs.readFileSync(versionPath, 'utf8'));
   }

@@ -21,7 +21,7 @@ function generateVersion() {
   const versionInfo = {
     branch: 'unknown',
     commit: 'unknown',
-    date: new Date().toISOString()
+    date: new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })
   };
 
   if (isGitRepo) {
@@ -32,7 +32,7 @@ function generateVersion() {
     if (commit) versionInfo.commit = commit;
   }
 
-  const outputPath = resolve(rootDir, 'src/version.json');
+  const outputPath = resolve(rootDir, 'version.json');
   
   const dir = dirname(outputPath);
   if (!existsSync(dir)) {
