@@ -12,6 +12,7 @@ import type { Container } from './container.js';
 import { registerAuthRoutes } from './adapters/http/routes/auth.routes.js';
 import { registerUserRoutes } from './adapters/http/routes/user.routes.js';
 import { registerClientAppRoutes } from './adapters/http/routes/client-app.routes.js';
+import { registerSessionRoutes } from './adapters/http/routes/session.routes.js';
 import { DomainError } from './domain/errors/domain-errors.js';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -131,6 +132,9 @@ Authorization: Bearer <access_token>
         { name: 'Auth', description: 'Authentication endpoints (login, register, refresh, logout)' },
         { name: 'Social Login', description: 'Social provider authentication (Google, Apple, etc.)' },
         { name: 'Users', description: 'User CRUD operations' },
+        { name: 'Sessions', description: 'Active session management (list, revoke)' },
+        { name: 'Login History', description: 'Login attempt audit trail' },
+        { name: 'Social Accounts', description: 'Link/unlink social provider accounts' },
         { name: 'Client Apps', description: 'Third-party application management' },
         { name: 'API Gateway', description: 'Endpoints for API Gateway integration' },
         { name: 'OIDC', description: 'OpenID Connect discovery endpoints' },
@@ -174,6 +178,7 @@ Authorization: Bearer <access_token>
   registerAuthRoutes(app, container.authController, container.authMiddleware);
   registerUserRoutes(app, container.userController, container.authMiddleware);
   registerClientAppRoutes(app, container.clientAppController, container.authMiddleware);
+  registerSessionRoutes(app, container.sessionController, container.authMiddleware);
 
   // ─── Global Error Handler ───────────────────────────────────────────
   app.setErrorHandler((error: Error & { validation?: unknown; code?: string; statusCode?: number }, _request, reply) => {
@@ -199,6 +204,9 @@ Authorization: Bearer <access_token>
         SOCIAL_AUTH_FAILED: 400,
         INVALID_VERIFICATION_TOKEN: 400,
         EXPIRED_VERIFICATION_TOKEN: 400,
+        SESSION_NOT_FOUND: 404,
+        CANNOT_REMOVE_LAST_AUTH_METHOD: 400,
+        SOCIAL_ACCOUNT_NOT_LINKED: 404,
       };
 
       const statusCode = statusMap[error.code] ?? 500;

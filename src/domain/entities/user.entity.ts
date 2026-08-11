@@ -145,6 +145,29 @@ export class User {
     return account?.providerAccountId ?? null;
   }
 
+  /**
+   * Removes a social provider link from the user.
+   * Returns true if removed, false if the provider was not linked.
+   * @throws Error if removing would leave the user with no authentication method.
+   */
+  removeSocialProvider(provider: SocialProvider): boolean {
+    if (!this.hasSocialProvider(provider)) {
+      return false;
+    }
+
+    // Check if user would be left with no auth method
+    const otherSocialCount = this._socialAccounts.filter((sa) => sa.provider !== provider).length;
+    const hasOtherAuthMethod = this._passwordHash !== null || otherSocialCount > 0;
+
+    if (!hasOtherAuthMethod) {
+      throw new Error('Cannot remove the last authentication method');
+    }
+
+    this._socialAccounts = this._socialAccounts.filter((sa) => sa.provider !== provider);
+    this.touch();
+    return true;
+  }
+
   private touch(): void {
     this._updatedAt = new Date();
   }

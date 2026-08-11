@@ -30,4 +30,5 @@ export interface IUserRepository {
   delete(id: string): Promise<void>;
   list(filters: ListUsersFilters, pagination: PaginationParams): Promise<PaginatedResult<User>>;
   addSocialAccount(userId: string, providerInfo: ProviderInfo): Promise<void>;
+  removeSocialAccount(userId: string, provider: SocialProvider): Promise<void>;
 }

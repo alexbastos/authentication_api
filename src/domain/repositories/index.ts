@@ -2,3 +2,4 @@ export type { IUserRepository, ListUsersFilters, PaginationParams, PaginatedResu
 export type { IRefreshTokenRepository } from './refresh-token.repository.js';
 export type { IClientAppRepository } from './client-app.repository.js';
 export type { IVerificationTokenRepository } from './verification-token.repository.js';
+export type { ILoginHistoryRepository } from './login-history.repository.js';

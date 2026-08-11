@@ -6,6 +6,9 @@ export interface RefreshTokenProps {
   token: string;
   userId: string;
   family: string;
+  userAgent: string | null;
+  ipAddress: string | null;
+  deviceName: string | null;
   expiresAt: Date;
   createdAt: Date;
   revokedAt: Date | null;
@@ -16,6 +19,9 @@ export class RefreshToken {
   readonly token: string;
   readonly userId: string;
   readonly family: string;
+  readonly userAgent: string | null;
+  readonly ipAddress: string | null;
+  readonly deviceName: string | null;
   readonly expiresAt: Date;
   readonly createdAt: Date;
   private _revokedAt: Date | null;
@@ -25,6 +31,9 @@ export class RefreshToken {
     this.token = props.token;
     this.userId = props.userId;
     this.family = props.family;
+    this.userAgent = props.userAgent;
+    this.ipAddress = props.ipAddress;
+    this.deviceName = props.deviceName;
     this.expiresAt = props.expiresAt;
     this.createdAt = props.createdAt;
     this._revokedAt = props.revokedAt;
@@ -52,3 +61,4 @@ export class RefreshToken {
     }
   }
 }
+

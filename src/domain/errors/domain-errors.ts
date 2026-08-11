@@ -132,3 +132,28 @@ export class AccountLockedError extends DomainError {
     );
   }
 }
+
+// ─── Session Errors ─────────────────────────────────────────────────────
+
+export class SessionNotFoundError extends DomainError {
+  constructor(sessionId: string) {
+    super(`Session not found: ${sessionId}`, 'SESSION_NOT_FOUND');
+  }
+}
+
+// ─── Social Account Errors ──────────────────────────────────────────────
+
+export class CannotRemoveLastAuthMethodError extends DomainError {
+  constructor() {
+    super(
+      'Cannot remove the last authentication method. Add a password or another social provider first.',
+      'CANNOT_REMOVE_LAST_AUTH_METHOD',
+    );
+  }
+}
+
+export class SocialAccountNotLinkedError extends DomainError {
+  constructor(provider: string) {
+    super(`Social account not linked: ${provider}`, 'SOCIAL_ACCOUNT_NOT_LINKED');
+  }
+}

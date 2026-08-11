@@ -78,6 +78,9 @@ export class RefreshTokenUseCase {
       token: newRefreshTokenValue,
       userId: user.id,
       family: existingToken.family, // Same family for reuse detection
+      userAgent: existingToken.userAgent,
+      ipAddress: existingToken.ipAddress,
+      deviceName: existingToken.deviceName,
       expiresAt,
       createdAt: new Date(),
       revokedAt: null,

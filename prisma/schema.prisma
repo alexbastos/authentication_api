@@ -25,6 +25,19 @@ enum VerificationTokenType {
   PASSWORD_RESET
 }
 
+enum LoginStatus {
+  SUCCESS
+  FAILURE
+}
+
+enum LoginMethod {
+  EMAIL_PASSWORD
+  SOCIAL_GOOGLE
+  SOCIAL_APPLE
+  SOCIAL_FACEBOOK
+  SOCIAL_GITHUB
+}
+
 model User {
   id            String     @id @default(cuid())
   name          String     @db.VarChar(100)
@@ -39,6 +52,7 @@ model User {
   socialAccounts     SocialAccount[]
   refreshTokens      RefreshToken[]
   verificationTokens VerificationToken[]
+  loginHistory       LoginHistory[]
 
   @@index([email])
   @@index([status])
@@ -59,13 +73,16 @@ model SocialAccount {
 }
 
 model RefreshToken {
-  id        String    @id @default(cuid())
-  token     String    @unique @db.VarChar(500)
-  userId    String    @map("user_id")
-  family    String    @db.VarChar(100)
-  expiresAt DateTime  @map("expires_at")
-  createdAt DateTime  @default(now()) @map("created_at")
-  revokedAt DateTime? @map("revoked_at")
+  id         String    @id @default(cuid())
+  token      String    @unique @db.VarChar(500)
+  userId     String    @map("user_id")
+  family     String    @db.VarChar(100)
+  userAgent  String?   @map("user_agent") @db.VarChar(500)
+  ipAddress  String?   @map("ip_address") @db.VarChar(45)
+  deviceName String?   @map("device_name") @db.VarChar(200)
+  expiresAt  DateTime  @map("expires_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  revokedAt  DateTime? @map("revoked_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -105,4 +122,24 @@ model VerificationToken {
   @@index([tokenHash])
   @@index([expiresAt])
   @@map("verification_tokens")
+}
+
+model LoginHistory {
+  id         String      @id @default(cuid())
+  userId     String?     @map("user_id")
+  email      String      @db.VarChar(255)
+  status     LoginStatus
+  method     LoginMethod
+  ipAddress  String?     @map("ip_address") @db.VarChar(45)
+  userAgent  String?     @map("user_agent") @db.VarChar(500)
+  deviceName String?     @map("device_name") @db.VarChar(200)
+  failReason String?     @map("fail_reason") @db.VarChar(255)
+  createdAt  DateTime    @default(now()) @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([email])
+  @@index([createdAt])
+  @@map("login_history")
 }

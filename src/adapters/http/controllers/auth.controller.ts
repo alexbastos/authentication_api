@@ -58,6 +58,8 @@ export class AuthController {
       email: request.body.email,
       password: request.body.password,
       identifier: request.ip,
+      userAgent: request.headers['user-agent'],
+      ipAddress: request.ip,
     });
 
     return reply.status(200).send(result);
@@ -67,6 +69,8 @@ export class AuthController {
     const result = await this.authenticateSocialUC.execute({
       provider: request.body.provider as SocialProvider,
       token: request.body.token,
+      userAgent: request.headers['user-agent'],
+      ipAddress: request.ip,
     });
 
     return reply.status(200).send(result);

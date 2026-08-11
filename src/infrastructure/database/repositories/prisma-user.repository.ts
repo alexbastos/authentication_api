@@ -135,6 +135,15 @@ export class PrismaUserRepository implements IUserRepository {
     });
   }
 
+  async removeSocialAccount(userId: string, provider: SocialProvider): Promise<void> {
+    await this.prisma.socialAccount.deleteMany({
+      where: {
+        userId,
+        provider,
+      },
+    });
+  }
+
   private toDomain(record: any): User {
     return new User({
       id: record.id,

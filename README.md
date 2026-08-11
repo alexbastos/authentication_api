@@ -33,6 +33,9 @@ Este serviço é um **Identity Broker** centralizado que:
 - ✅ Emite **seu próprio JWT** padronizado (RS256) — nenhum outro microserviço precisa saber que o Google existe
 - ✅ Fornece endpoint **JWKS público** para validação stateless por outros serviços
 - ✅ Implementa **Refresh Token Rotation** com detecção de reuso
+- ✅ Gerencia **Sessões Ativas** (listagem e revogação remota de dispositivos)
+- ✅ Registra **Histórico de Login** para auditoria de acessos
+- ✅ Permite **Vincular/Desvincular** múltiplas contas sociais a um único usuário
 - ✅ Mantém **blocklist de tokens** via Redis para logout efetivo
 - ✅ Suporta **RBAC** (Role-Based Access Control) com roles USER e ADMIN
 - ✅ Possui **Swagger UI** auto-gerado para documentação dos endpoints
@@ -235,6 +238,16 @@ Todas as variáveis de ambiente estão documentadas no arquivo `.env.example`:
 | `PUT` | `/api/v1/users/:id` | Atualizar usuário | ✅ Bearer |
 | `DELETE` | `/api/v1/users/:id` | Desativar usuário (soft delete) | ✅ Bearer |
 
+### Controle de Sessão e Segurança
+
+| Método | Endpoint | Descrição | Auth |
+|:---|:---|:---|:---|
+| `GET` | `/api/v1/users/me/sessions` | Listar sessões (dispositivos) ativas | ✅ Bearer |
+| `DELETE` | `/api/v1/users/me/sessions/:id` | Revogar (deslogar) sessão específica | ✅ Bearer |
+| `GET` | `/api/v1/users/me/login-history` | Histórico de tentativas de login | ✅ Bearer |
+| `POST` | `/api/v1/users/me/social` | Vincular nova conta social | ✅ Bearer |
+| `DELETE` | `/api/v1/users/me/social/:provider` | Desvincular conta social | ✅ Bearer |
+
 ### Client Apps
 
 | Método | Endpoint | Descrição | Auth |
@@ -422,22 +435,25 @@ npx prisma studio
 │ name         │  │  │ user_id     FK  │     │ token         │
 │ email    UQ  │  │  │ provider        │     │ user_id   FK  │──┐
 │ password_hash│  │  │ provider_acct_id│     │ family        │  │
-│ role         │  │  └─────────────────┘     │ expires_at    │  │
-│ status       │  │                          │ revoked_at    │  │
-│ created_at   │  │                          └───────────────┘  │
-│ updated_at   │  │                                             │
-└──────────────┘  │  ┌───────────────┐                          │
-                  │  │  client_apps  │                          │
-                  │  ├───────────────┤                          │
-                  └──│ id        PK  │                          │
-                     │ name          │                          │
-                     │ client_id  UQ │                          │
-                     │ client_secret │                          │
-                     │ redirect_urls │                          │
-                     │ is_active     │                          │
-                     └───────────────┘                          │
-                                                                │
-                        users.id ◄──────────────────────────────┘
+│ role         │  │  └─────────────────┘     │ user_agent    │  │
+│ status       │  │                          │ ip_address    │  │
+│ created_at   │  │                          │ device_name   │  │
+│ updated_at   │  │  ┌───────────────┐       │ expires_at    │  │
+└──────────────┘  │  │  client_apps  │       │ revoked_at    │  │
+                  │  ├───────────────┤       └───────────────┘  │
+                  ├──│ id        PK  │                          │
+                  │  │ name          │                          │
+                  │  │ client_id  UQ │       ┌───────────────┐  │
+                  │  │ client_secret │       │ login_history │  │
+                  │  │ redirect_urls │       ├───────────────┤  │
+                  │  │ is_active     │       │ id        PK  │  │
+                  │  └───────────────┘       │ user_id   FK  │──┘
+                  │                          │ status        │
+                  │                          │ method        │
+                  │                          │ ip_address    │
+                  │                          │ device_name   │
+                  └──────────────────────────│ fail_reason   │
+                                             └───────────────┘
 ```
 
 ---

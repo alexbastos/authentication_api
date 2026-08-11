@@ -2,16 +2,20 @@
 
 import type { IUserRepository } from '../../../domain/repositories/user.repository.js';
 import type { IRefreshTokenRepository } from '../../../domain/repositories/refresh-token.repository.js';
+import type { ILoginHistoryRepository } from '../../../domain/repositories/login-history.repository.js';
 import type { IHasher } from '../../ports/hasher.port.js';
 import type { ITokenManager } from '../../ports/token-manager.port.js';
 import type { ICacheProvider } from '../../ports/cache.port.js';
 import { RefreshToken } from '../../../domain/entities/refresh-token.entity.js';
+import { LoginHistory } from '../../../domain/entities/login-history.entity.js';
+import { LoginStatus, LoginMethod } from '../../../domain/entities/role.entity.js';
 import {
   InvalidCredentialsError,
   UserInactiveError,
   EmailNotVerifiedError,
   AccountLockedError,
 } from '../../../domain/errors/domain-errors.js';
+import { parseDeviceName } from '../../../infrastructure/security/user-agent.util.js';
 import { v4 as uuidv4 } from 'uuid';
 
 const BRUTE_FORCE_PREFIX = 'login_attempts:';
@@ -21,6 +25,10 @@ export interface AuthenticateUserInput {
   password: string;
   /** IP or identifier for brute force tracking */
   identifier?: string;
+  /** Raw User-Agent header */
+  userAgent?: string;
+  /** Client IP address */
+  ipAddress?: string;
 }
 
 export interface AuthenticateUserOutput {
@@ -45,11 +53,13 @@ export class AuthenticateUserUseCase {
     private readonly cacheProvider?: ICacheProvider,
     private readonly maxLoginAttempts: number = 5,
     private readonly lockoutMinutes: number = 15,
+    private readonly loginHistoryRepository?: ILoginHistoryRepository,
   ) {}
 
   async execute(input: AuthenticateUserInput): Promise<AuthenticateUserOutput> {
     const lockKey = `${BRUTE_FORCE_PREFIX}${input.identifier ?? input.email}`;
     const lockoutTtl = this.lockoutMinutes * 60;
+    const deviceName = parseDeviceName(input.userAgent);
 
     // Check if account/IP is locked
     if (this.cacheProvider) {
@@ -63,21 +73,61 @@ export class AuthenticateUserUseCase {
 
     if (!user || !user.hasPassword) {
       await this.recordFailedAttempt(lockKey, lockoutTtl);
+      await this.recordLoginHistory({
+        userId: user?.id ?? null,
+        email: input.email,
+        status: LoginStatus.FAILURE,
+        method: LoginMethod.EMAIL_PASSWORD,
+        ipAddress: input.ipAddress ?? null,
+        userAgent: input.userAgent ?? null,
+        deviceName,
+        failReason: 'Invalid credentials',
+      });
       throw new InvalidCredentialsError();
     }
 
     if (!user.isActive) {
+      await this.recordLoginHistory({
+        userId: user.id,
+        email: input.email,
+        status: LoginStatus.FAILURE,
+        method: LoginMethod.EMAIL_PASSWORD,
+        ipAddress: input.ipAddress ?? null,
+        userAgent: input.userAgent ?? null,
+        deviceName,
+        failReason: 'User inactive',
+      });
       throw new UserInactiveError();
     }
 
     const isPasswordValid = await this.hasher.compare(input.password, user.passwordHash!);
     if (!isPasswordValid) {
       await this.recordFailedAttempt(lockKey, lockoutTtl);
+      await this.recordLoginHistory({
+        userId: user.id,
+        email: input.email,
+        status: LoginStatus.FAILURE,
+        method: LoginMethod.EMAIL_PASSWORD,
+        ipAddress: input.ipAddress ?? null,
+        userAgent: input.userAgent ?? null,
+        deviceName,
+        failReason: 'Invalid password',
+      });
       throw new InvalidCredentialsError();
     }
 
     // Require email verification before granting access
     if (!user.emailVerified) {
+      await this.recordLoginHistory({
+        userId: user.id,
+        email: input.email,
+        status: LoginStatus.FAILURE,
+        method: LoginMethod.EMAIL_PASSWORD,
+        ipAddress: input.ipAddress ?? null,
+        userAgent: input.userAgent ?? null,
+        deviceName,
+        failReason: 'Email not verified',
+      });
       throw new EmailNotVerifiedError();
     }
 
@@ -103,12 +153,27 @@ export class AuthenticateUserUseCase {
       token: refreshTokenValue,
       userId: user.id,
       family,
+      userAgent: input.userAgent ?? null,
+      ipAddress: input.ipAddress ?? null,
+      deviceName,
       expiresAt,
       createdAt: new Date(),
       revokedAt: null,
     });
 
     await this.refreshTokenRepository.create(refreshToken);
+
+    // Record successful login
+    await this.recordLoginHistory({
+      userId: user.id,
+      email: user.email,
+      status: LoginStatus.SUCCESS,
+      method: LoginMethod.EMAIL_PASSWORD,
+      ipAddress: input.ipAddress ?? null,
+      userAgent: input.userAgent ?? null,
+      deviceName,
+      failReason: null,
+    });
 
     return {
       accessToken,
@@ -128,4 +193,25 @@ export class AuthenticateUserUseCase {
       await this.cacheProvider.increment(lockKey, ttlSeconds);
     }
   }
+
+  private async recordLoginHistory(data: {
+    userId: string | null;
+    email: string;
+    status: LoginStatus;
+    method: LoginMethod;
+    ipAddress: string | null;
+    userAgent: string | null;
+    deviceName: string | null;
+    failReason: string | null;
+  }): Promise<void> {
+    if (this.loginHistoryRepository) {
+      const entry = new LoginHistory({
+        id: uuidv4(),
+        ...data,
+        createdAt: new Date(),
+      });
+      await this.loginHistoryRepository.create(entry);
+    }
+  }
 }
+

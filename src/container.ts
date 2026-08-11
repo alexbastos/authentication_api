@@ -9,6 +9,7 @@ import { PrismaUserRepository } from './infrastructure/database/repositories/pri
 import { PrismaRefreshTokenRepository } from './infrastructure/database/repositories/prisma-refresh-token.repository.js';
 import { PrismaClientAppRepository } from './infrastructure/database/repositories/prisma-client-app.repository.js';
 import { PrismaVerificationTokenRepository } from './infrastructure/database/repositories/prisma-verification-token.repository.js';
+import { PrismaLoginHistoryRepository } from './infrastructure/database/repositories/prisma-login-history.repository.js';
 import { RedisCacheProvider } from './infrastructure/cache/redis-cache.provider.js';
 import { BcryptHasher } from './infrastructure/security/bcrypt-hasher.js';
 import { JoseTokenManager } from './infrastructure/security/jose-token-manager.js';
@@ -16,7 +17,7 @@ import { GoogleOAuthProvider } from './infrastructure/social/google-oauth.provid
 import { SocialAuthProviderRegistry } from './infrastructure/social/social-auth-registry.js';
 import { ConsoleEmailService } from './infrastructure/email/console-email.service.js';
 import { AwsSesEmailService } from './infrastructure/email/aws-ses-email.service.js';
-// Use Cases
+// Use Cases — Auth
 import { AuthenticateUserUseCase } from './application/use-cases/auth/authenticate-user.use-case.js';
 import { AuthenticateSocialUseCase } from './application/use-cases/auth/authenticate-social.use-case.js';
 import { ValidateTokenUseCase } from './application/use-cases/auth/validate-token.use-case.js';
@@ -27,18 +28,28 @@ import { ResendVerificationEmailUseCase } from './application/use-cases/auth/res
 import { RequestPasswordResetUseCase } from './application/use-cases/auth/request-password-reset.use-case.js';
 import { ResetPasswordUseCase } from './application/use-cases/auth/reset-password.use-case.js';
 import { ChangePasswordUseCase } from './application/use-cases/auth/change-password.use-case.js';
+// Use Cases — User
 import { RegisterUserUseCase } from './application/use-cases/user/register-user.use-case.js';
 import { GetUserUseCase } from './application/use-cases/user/get-user.use-case.js';
 import { UpdateUserUseCase } from './application/use-cases/user/update-user.use-case.js';
 import { DeleteUserUseCase } from './application/use-cases/user/delete-user.use-case.js';
 import { ListUsersUseCase } from './application/use-cases/user/list-users.use-case.js';
+// Use Cases — Client App
 import { RegisterClientAppUseCase } from './application/use-cases/client-app/register-client-app.use-case.js';
 import { ListClientAppsUseCase } from './application/use-cases/client-app/list-client-apps.use-case.js';
+// Use Cases — Session
+import { ListSessionsUseCase } from './application/use-cases/session/list-sessions.use-case.js';
+import { RevokeSessionUseCase } from './application/use-cases/session/revoke-session.use-case.js';
+import { GetLoginHistoryUseCase } from './application/use-cases/session/get-login-history.use-case.js';
+// Use Cases — Social
+import { LinkSocialAccountUseCase } from './application/use-cases/social/link-social-account.use-case.js';
+import { UnlinkSocialAccountUseCase } from './application/use-cases/social/unlink-social-account.use-case.js';
 
 // Controllers
 import { AuthController } from './adapters/http/controllers/auth.controller.js';
 import { UserController } from './adapters/http/controllers/user.controller.js';
 import { ClientAppController } from './adapters/http/controllers/client-app.controller.js';
+import { SessionController } from './adapters/http/controllers/session.controller.js';
 
 // Middleware
 import { createAuthMiddleware } from './adapters/http/middlewares/auth.middleware.js';
@@ -55,6 +66,7 @@ export interface Container {
   authController: AuthController;
   userController: UserController;
   clientAppController: ClientAppController;
+  sessionController: SessionController;
 
   // Middleware
   authMiddleware: ReturnType<typeof createAuthMiddleware>;
@@ -101,15 +113,18 @@ export function createContainer(env: Env): Container {
   const refreshTokenRepository = new PrismaRefreshTokenRepository(prisma);
   const clientAppRepository = new PrismaClientAppRepository(prisma);
   const verificationTokenRepository = new PrismaVerificationTokenRepository(prisma);
+  const loginHistoryRepository = new PrismaLoginHistoryRepository(prisma);
 
   // ─── Use Cases ──────────────────────────────────────────────────────
   const authenticateUserUC = new AuthenticateUserUseCase(
     userRepository, refreshTokenRepository, hasher, tokenManager,
     env.JWT_REFRESH_TOKEN_EXPIRY_DAYS,
     redis, env.LOGIN_MAX_ATTEMPTS, env.LOGIN_LOCKOUT_MINUTES,
+    loginHistoryRepository,
   );
   const authenticateSocialUC = new AuthenticateSocialUseCase(
-    userRepository, refreshTokenRepository, tokenManager, socialRegistry, env.JWT_REFRESH_TOKEN_EXPIRY_DAYS,
+    userRepository, refreshTokenRepository, tokenManager, socialRegistry,
+    env.JWT_REFRESH_TOKEN_EXPIRY_DAYS, loginHistoryRepository,
   );
   const validateTokenUC = new ValidateTokenUseCase(tokenManager, redis);
   const refreshTokenUC = new RefreshTokenUseCase(
@@ -137,6 +152,15 @@ export function createContainer(env: Env): Container {
   const registerClientAppUC = new RegisterClientAppUseCase(clientAppRepository);
   const listClientAppsUC = new ListClientAppsUseCase(clientAppRepository);
 
+  // Session use cases
+  const listSessionsUC = new ListSessionsUseCase(refreshTokenRepository);
+  const revokeSessionUC = new RevokeSessionUseCase(refreshTokenRepository);
+  const getLoginHistoryUC = new GetLoginHistoryUseCase(loginHistoryRepository);
+
+  // Social account management use cases
+  const linkSocialAccountUC = new LinkSocialAccountUseCase(userRepository, socialRegistry);
+  const unlinkSocialAccountUC = new UnlinkSocialAccountUseCase(userRepository);
+
   // ─── Middleware ─────────────────────────────────────────────────────
   const authMiddleware = createAuthMiddleware(tokenManager, redis);
 
@@ -150,6 +174,10 @@ export function createContainer(env: Env): Container {
   );
   const userController = new UserController(getUserUC, updateUserUC, deleteUserUC, listUsersUC);
   const clientAppController = new ClientAppController(registerClientAppUC, listClientAppsUC);
+  const sessionController = new SessionController(
+    listSessionsUC, revokeSessionUC, getLoginHistoryUC,
+    linkSocialAccountUC, unlinkSocialAccountUC,
+  );
 
   // ─── Shutdown ───────────────────────────────────────────────────────
   const shutdown = async () => {
@@ -168,7 +196,9 @@ export function createContainer(env: Env): Container {
     authController,
     userController,
     clientAppController,
+    sessionController,
     authMiddleware,
     shutdown,
   };
 }
+
