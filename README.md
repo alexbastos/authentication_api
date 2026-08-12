@@ -40,6 +40,7 @@ Este serviço é um **Identity Broker** centralizado que:
 - ✅ Suporta **RBAC** (Role-Based Access Control) com roles USER e ADMIN
 - ✅ Possui **Swagger UI** auto-gerado para documentação dos endpoints
 - ✅ Gerencia **Client Apps** (aplicações terceiras que usam o IdP)
+- ✅ Suporta **Organizações / Multi-tenancy** (com convites e gestão de membros)
 - ✅ Preparado para rodar em **AWS ECS Fargate** com Docker
 
 ### Fluxo de Autenticação
@@ -254,6 +255,20 @@ Todas as variáveis de ambiente estão documentadas no arquivo `.env.example`:
 |:---|:---|:---|:---|
 | `POST` | `/api/v1/client-apps` | Registrar app cliente | ✅ Admin |
 | `GET` | `/api/v1/client-apps` | Listar apps clientes | ✅ Admin |
+
+### Organizações (Multi-tenancy)
+
+| Método | Endpoint | Descrição | Auth |
+|:---|:---|:---|:---|
+| `POST` | `/api/v1/organizations` | Criar organização | ✅ Bearer |
+| `GET` | `/api/v1/organizations` | Listar minhas organizações | ✅ Bearer |
+| `GET` | `/api/v1/organizations/:orgId` | Buscar organização por ID | ✅ Membro |
+| `PUT` | `/api/v1/organizations/:orgId` | Atualizar organização | ✅ Owner/Admin |
+| `GET` | `/api/v1/organizations/:orgId/members` | Listar membros da organização | ✅ Membro |
+| `POST` | `/api/v1/organizations/:orgId/invitations` | Convidar usuário | ✅ Owner/Admin |
+| `POST` | `/api/v1/organizations/invitations/accept` | Aceitar convite via token | ✅ Bearer |
+| `DELETE` | `/api/v1/organizations/:orgId/members/:userId` | Remover membro | ✅ Owner/Admin |
+| `PUT` | `/api/v1/organizations/:orgId/members/:userId/role`| Alterar role do membro | ✅ Owner |
 
 ### Outros
 

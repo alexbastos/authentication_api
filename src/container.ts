@@ -10,6 +10,8 @@ import { PrismaRefreshTokenRepository } from './infrastructure/database/reposito
 import { PrismaClientAppRepository } from './infrastructure/database/repositories/prisma-client-app.repository.js';
 import { PrismaVerificationTokenRepository } from './infrastructure/database/repositories/prisma-verification-token.repository.js';
 import { PrismaLoginHistoryRepository } from './infrastructure/database/repositories/prisma-login-history.repository.js';
+import { PrismaOrganizationRepository } from './infrastructure/database/repositories/prisma-organization.repository.js';
+import { PrismaOrgInvitationRepository } from './infrastructure/database/repositories/prisma-org-invitation.repository.js';
 import { RedisCacheProvider } from './infrastructure/cache/redis-cache.provider.js';
 import { BcryptHasher } from './infrastructure/security/bcrypt-hasher.js';
 import { JoseTokenManager } from './infrastructure/security/jose-token-manager.js';
@@ -44,12 +46,23 @@ import { GetLoginHistoryUseCase } from './application/use-cases/session/get-logi
 // Use Cases — Social
 import { LinkSocialAccountUseCase } from './application/use-cases/social/link-social-account.use-case.js';
 import { UnlinkSocialAccountUseCase } from './application/use-cases/social/unlink-social-account.use-case.js';
+// Use Cases — Organization
+import { CreateOrganizationUseCase } from './application/use-cases/organization/create-organization.use-case.js';
+import { ListUserOrganizationsUseCase } from './application/use-cases/organization/list-user-organizations.use-case.js';
+import { GetOrganizationUseCase } from './application/use-cases/organization/get-organization.use-case.js';
+import { UpdateOrganizationUseCase } from './application/use-cases/organization/update-organization.use-case.js';
+import { InviteMemberUseCase } from './application/use-cases/organization/invite-member.use-case.js';
+import { AcceptInvitationUseCase } from './application/use-cases/organization/accept-invitation.use-case.js';
+import { RemoveMemberUseCase } from './application/use-cases/organization/remove-member.use-case.js';
+import { ChangeMemberRoleUseCase } from './application/use-cases/organization/change-member-role.use-case.js';
+
 
 // Controllers
 import { AuthController } from './adapters/http/controllers/auth.controller.js';
 import { UserController } from './adapters/http/controllers/user.controller.js';
 import { ClientAppController } from './adapters/http/controllers/client-app.controller.js';
 import { SessionController } from './adapters/http/controllers/session.controller.js';
+import { OrganizationController } from './adapters/http/controllers/organization.controller.js';
 
 // Middleware
 import { createAuthMiddleware } from './adapters/http/middlewares/auth.middleware.js';
@@ -67,6 +80,8 @@ export interface Container {
   userController: UserController;
   clientAppController: ClientAppController;
   sessionController: SessionController;
+  organizationController: OrganizationController;
+  orgRepository: PrismaOrganizationRepository;
 
   // Middleware
   authMiddleware: ReturnType<typeof createAuthMiddleware>;
@@ -114,6 +129,8 @@ export function createContainer(env: Env): Container {
   const clientAppRepository = new PrismaClientAppRepository(prisma);
   const verificationTokenRepository = new PrismaVerificationTokenRepository(prisma);
   const loginHistoryRepository = new PrismaLoginHistoryRepository(prisma);
+  const orgRepository = new PrismaOrganizationRepository(prisma);
+  const orgInvitationRepository = new PrismaOrgInvitationRepository(prisma);
 
   // ─── Use Cases ──────────────────────────────────────────────────────
   const authenticateUserUC = new AuthenticateUserUseCase(
@@ -161,6 +178,17 @@ export function createContainer(env: Env): Container {
   const linkSocialAccountUC = new LinkSocialAccountUseCase(userRepository, socialRegistry);
   const unlinkSocialAccountUC = new UnlinkSocialAccountUseCase(userRepository);
 
+  // Organization use cases
+  const createOrganizationUC = new CreateOrganizationUseCase(orgRepository);
+  const listUserOrganizationsUC = new ListUserOrganizationsUseCase(orgRepository);
+  const getOrganizationUC = new GetOrganizationUseCase(orgRepository);
+  const updateOrganizationUC = new UpdateOrganizationUseCase(orgRepository);
+  const inviteMemberUC = new InviteMemberUseCase(orgRepository, orgInvitationRepository);
+  const acceptInvitationUC = new AcceptInvitationUseCase(orgRepository, orgInvitationRepository);
+  const removeMemberUC = new RemoveMemberUseCase(orgRepository);
+  const changeMemberRoleUC = new ChangeMemberRoleUseCase(orgRepository);
+
+
   // ─── Middleware ─────────────────────────────────────────────────────
   const authMiddleware = createAuthMiddleware(tokenManager, redis);
 
@@ -177,6 +205,11 @@ export function createContainer(env: Env): Container {
   const sessionController = new SessionController(
     listSessionsUC, revokeSessionUC, getLoginHistoryUC,
     linkSocialAccountUC, unlinkSocialAccountUC,
+  );
+  const organizationController = new OrganizationController(
+    createOrganizationUC, listUserOrganizationsUC, getOrganizationUC,
+    updateOrganizationUC, inviteMemberUC, acceptInvitationUC,
+    removeMemberUC, changeMemberRoleUC, orgRepository,
   );
 
   // ─── Shutdown ───────────────────────────────────────────────────────
@@ -197,6 +230,8 @@ export function createContainer(env: Env): Container {
     userController,
     clientAppController,
     sessionController,
+    organizationController,
+    orgRepository,
     authMiddleware,
     shutdown,
   };

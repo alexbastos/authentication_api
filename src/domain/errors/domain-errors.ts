@@ -157,3 +157,53 @@ export class SocialAccountNotLinkedError extends DomainError {
     super(`Social account not linked: ${provider}`, 'SOCIAL_ACCOUNT_NOT_LINKED');
   }
 }
+
+// ─── Organization Errors ────────────────────────────────────────────────
+
+export class OrganizationNotFoundError extends DomainError {
+  constructor(identifier: string) {
+    super(`Organization not found: ${identifier}`, 'ORGANIZATION_NOT_FOUND');
+  }
+}
+
+export class OrganizationSlugTakenError extends DomainError {
+  constructor(slug: string) {
+    super(`Organization slug "${slug}" is already taken`, 'ORGANIZATION_SLUG_TAKEN');
+  }
+}
+
+export class NotOrganizationMemberError extends DomainError {
+  constructor() {
+    super('You are not a member of this organization', 'NOT_ORGANIZATION_MEMBER');
+  }
+}
+
+export class CannotRemoveOwnerError extends DomainError {
+  constructor() {
+    super('Cannot remove the owner of an organization. Transfer ownership first.', 'CANNOT_REMOVE_OWNER');
+  }
+}
+
+export class InvitationNotFoundError extends DomainError {
+  constructor() {
+    super('Invitation not found or invalid token', 'INVITATION_NOT_FOUND');
+  }
+}
+
+export class InvitationExpiredError extends DomainError {
+  constructor() {
+    super('This invitation has expired. Please request a new one.', 'INVITATION_EXPIRED');
+  }
+}
+
+export class InvitationAlreadyAcceptedError extends DomainError {
+  constructor() {
+    super('This invitation has already been accepted', 'INVITATION_ALREADY_ACCEPTED');
+  }
+}
+
+export class InsufficientOrgRoleError extends DomainError {
+  constructor(requiredRole: string) {
+    super(`This action requires at least ${requiredRole} role in the organization`, 'INSUFFICIENT_ORG_ROLE');
+  }
+}

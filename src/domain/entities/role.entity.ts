@@ -35,3 +35,10 @@ export enum LoginMethod {
   SOCIAL_FACEBOOK = 'SOCIAL_FACEBOOK',
   SOCIAL_GITHUB = 'SOCIAL_GITHUB',
 }
+
+export enum OrgRole {
+  OWNER = 'OWNER',
+  ADMIN = 'ADMIN',
+  MEMBER = 'MEMBER',
+  VIEWER = 'VIEWER',
+}

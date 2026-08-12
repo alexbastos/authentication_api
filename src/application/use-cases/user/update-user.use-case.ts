@@ -2,6 +2,7 @@
 
 import type { IUserRepository } from '../../../domain/repositories/user.repository.js';
 import type { IHasher } from '../../ports/hasher.port.js';
+import type { UserProfile, UserAddress } from '../../../domain/entities/user.entity.js';
 import { Role } from '../../../domain/entities/role.entity.js';
 import {
   UserNotFoundError,
@@ -17,6 +18,14 @@ export interface UpdateUserInput {
   role?: Role;
   requesterId: string;
   requesterRole: Role;
+  // Profile fields
+  avatarUrl?: string | null;
+  phone?: string | null;
+  birthDate?: Date | null;
+  bio?: string | null;
+  locale?: string | null;
+  timezone?: string | null;
+  address?: Partial<UserAddress>;
 }
 
 export interface UpdateUserOutput {
@@ -26,6 +35,7 @@ export interface UpdateUserOutput {
   role: string;
   status: string;
   updatedAt: Date;
+  profile: UserProfile;
 }
 
 export class UpdateUserUseCase {
@@ -76,6 +86,34 @@ export class UpdateUserUseCase {
       user.updateRole(input.role);
     }
 
+    // 4. Update profile fields
+    const hasProfileUpdate =
+      input.avatarUrl !== undefined ||
+      input.phone !== undefined ||
+      input.birthDate !== undefined ||
+      input.bio !== undefined ||
+      input.locale !== undefined ||
+      input.timezone !== undefined ||
+      input.address !== undefined;
+
+    if (hasProfileUpdate) {
+      user.updateProfile({
+        avatarUrl: input.avatarUrl,
+        phone: input.phone,
+        birthDate: input.birthDate,
+        bio: input.bio,
+        locale: input.locale,
+        timezone: input.timezone,
+        address: input.address ? {
+          street: input.address.street ?? null,
+          city: input.address.city ?? null,
+          state: input.address.state ?? null,
+          zipCode: input.address.zipCode ?? null,
+          country: input.address.country ?? null,
+        } : undefined,
+      });
+    }
+
     const updatedUser = await this.userRepository.update(user);
 
     return {
@@ -85,6 +123,8 @@ export class UpdateUserUseCase {
       role: updatedUser.role,
       status: updatedUser.status,
       updatedAt: updatedUser.updatedAt,
+      profile: updatedUser.profile,
     };
   }
 }
+

@@ -13,6 +13,7 @@ import { registerAuthRoutes } from './adapters/http/routes/auth.routes.js';
 import { registerUserRoutes } from './adapters/http/routes/user.routes.js';
 import { registerClientAppRoutes } from './adapters/http/routes/client-app.routes.js';
 import { registerSessionRoutes } from './adapters/http/routes/session.routes.js';
+import { registerOrganizationRoutes } from './adapters/http/routes/organization.routes.js';
 import { DomainError } from './domain/errors/domain-errors.js';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -136,6 +137,7 @@ Authorization: Bearer <access_token>
         { name: 'Login History', description: 'Login attempt audit trail' },
         { name: 'Social Accounts', description: 'Link/unlink social provider accounts' },
         { name: 'Client Apps', description: 'Third-party application management' },
+        { name: 'Organizations', description: 'Organization management (multi-tenancy)' },
         { name: 'API Gateway', description: 'Endpoints for API Gateway integration' },
         { name: 'OIDC', description: 'OpenID Connect discovery endpoints' },
       ],
@@ -179,6 +181,7 @@ Authorization: Bearer <access_token>
   registerUserRoutes(app, container.userController, container.authMiddleware);
   registerClientAppRoutes(app, container.clientAppController, container.authMiddleware);
   registerSessionRoutes(app, container.sessionController, container.authMiddleware);
+  registerOrganizationRoutes(app, container.organizationController, container.authMiddleware);
 
   // ─── Global Error Handler ───────────────────────────────────────────
   app.setErrorHandler((error: Error & { validation?: unknown; code?: string; statusCode?: number }, _request, reply) => {
@@ -207,6 +210,14 @@ Authorization: Bearer <access_token>
         SESSION_NOT_FOUND: 404,
         CANNOT_REMOVE_LAST_AUTH_METHOD: 400,
         SOCIAL_ACCOUNT_NOT_LINKED: 404,
+        ORGANIZATION_NOT_FOUND: 404,
+        ORGANIZATION_SLUG_TAKEN: 409,
+        NOT_ORGANIZATION_MEMBER: 403,
+        CANNOT_REMOVE_OWNER: 400,
+        INVITATION_NOT_FOUND: 404,
+        INVITATION_EXPIRED: 400,
+        INVITATION_ALREADY_ACCEPTED: 400,
+        INSUFFICIENT_ORG_ROLE: 403,
       };
 
       const statusCode = statusMap[error.code] ?? 500;

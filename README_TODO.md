@@ -53,7 +53,7 @@ Este documento lista as funcionalidades, melhorias de segurança e recursos de g
 - [ ] **Campos Extras de Perfil:**
   - Adicionar avatar/foto de perfil, telefone, data de nascimento, endereço, etc., conforme a necessidade do produto.
 
-- [ ] **Suporte a Organizações / Tenants (Multi-tenancy):**
+- [x] **Suporte a Organizações / Tenants (Multi-tenancy):**
   - Preparar a estrutura para que usuários pertençam a uma ou mais empresas, com regras de isolamento de dados.
 
 - [ ] **Roles e Permissões Granulares (RBAC Avançado):**

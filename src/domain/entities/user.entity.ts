@@ -11,6 +11,30 @@ export interface ProviderInfo {
   providerAccountId: string;
 }
 
+/**
+ * Value Object representing a user's physical address
+ */
+export interface UserAddress {
+  street: string | null;
+  city: string | null;
+  state: string | null;
+  zipCode: string | null;
+  country: string | null;
+}
+
+/**
+ * Value Object representing extended profile fields
+ */
+export interface UserProfile {
+  avatarUrl: string | null;
+  phone: string | null;
+  birthDate: Date | null;
+  bio: string | null;
+  locale: string | null;
+  timezone: string | null;
+  address: UserAddress;
+}
+
 export interface UserProps {
   id: string;
   name: string;
@@ -22,6 +46,14 @@ export interface UserProps {
   socialAccounts: ProviderInfo[];
   createdAt: Date;
   updatedAt: Date;
+  // Profile
+  avatarUrl?: string | null;
+  phone?: string | null;
+  birthDate?: Date | null;
+  bio?: string | null;
+  locale?: string | null;
+  timezone?: string | null;
+  address?: UserAddress;
 }
 
 export class User {
@@ -35,6 +67,14 @@ export class User {
   private _socialAccounts: ProviderInfo[];
   readonly createdAt: Date;
   private _updatedAt: Date;
+  // Profile
+  private _avatarUrl: string | null;
+  private _phone: string | null;
+  private _birthDate: Date | null;
+  private _bio: string | null;
+  private _locale: string | null;
+  private _timezone: string | null;
+  private _address: UserAddress;
 
   constructor(props: UserProps) {
     this.id = props.id;
@@ -47,6 +87,14 @@ export class User {
     this._socialAccounts = props.socialAccounts;
     this.createdAt = props.createdAt;
     this._updatedAt = props.updatedAt;
+    // Profile
+    this._avatarUrl = props.avatarUrl ?? null;
+    this._phone = props.phone ?? null;
+    this._birthDate = props.birthDate ?? null;
+    this._bio = props.bio ?? null;
+    this._locale = props.locale ?? null;
+    this._timezone = props.timezone ?? null;
+    this._address = props.address ?? { street: null, city: null, state: null, zipCode: null, country: null };
   }
 
   // ─── Getters ──────────────────────────────────────────────────────────
@@ -81,6 +129,18 @@ export class User {
 
   get updatedAt(): Date {
     return this._updatedAt;
+  }
+
+  get profile(): UserProfile {
+    return {
+      avatarUrl: this._avatarUrl,
+      phone: this._phone,
+      birthDate: this._birthDate,
+      bio: this._bio,
+      locale: this._locale,
+      timezone: this._timezone,
+      address: { ...this._address },
+    };
   }
 
   // ─── Domain Methods ───────────────────────────────────────────────────
@@ -128,6 +188,25 @@ export class User {
     this.touch();
   }
 
+  updateProfile(profile: Partial<UserProfile>): void {
+    if (profile.avatarUrl !== undefined) this._avatarUrl = profile.avatarUrl;
+    if (profile.phone !== undefined) this._phone = profile.phone;
+    if (profile.birthDate !== undefined) this._birthDate = profile.birthDate;
+    if (profile.bio !== undefined) this._bio = profile.bio;
+    if (profile.locale !== undefined) this._locale = profile.locale;
+    if (profile.timezone !== undefined) this._timezone = profile.timezone;
+    if (profile.address) {
+      this._address = {
+        street: profile.address.street ?? this._address.street,
+        city: profile.address.city ?? this._address.city,
+        state: profile.address.state ?? this._address.state,
+        zipCode: profile.address.zipCode ?? this._address.zipCode,
+        country: profile.address.country ?? this._address.country,
+      };
+    }
+    this.touch();
+  }
+
   hasSocialProvider(provider: SocialProvider): boolean {
     return this._socialAccounts.some((sa) => sa.provider === provider);
   }
@@ -172,7 +251,7 @@ export class User {
     this._updatedAt = new Date();
   }
 
-  toJSON(): UserProps {
+  toJSON(): UserProps & { address: UserAddress } {
     return {
       id: this.id,
       name: this._name,
@@ -184,6 +263,14 @@ export class User {
       socialAccounts: [...this._socialAccounts],
       createdAt: this.createdAt,
       updatedAt: this._updatedAt,
+      avatarUrl: this._avatarUrl,
+      phone: this._phone,
+      birthDate: this._birthDate,
+      bio: this._bio,
+      locale: this._locale,
+      timezone: this._timezone,
+      address: { ...this._address },
     };
   }
 }
+
