@@ -5,6 +5,7 @@ import type { IVerificationTokenRepository } from '../../../domain/repositories/
 import type { IEmailService } from '../../ports/email.port.js';
 import { SendVerificationEmailUseCase } from './send-verification-email.use-case.js';
 import { UserNotFoundError } from '../../../domain/errors/domain-errors.js';
+import { VerificationTokenType } from '../../../domain/entities/role.entity.js';
 
 export interface ResendVerificationEmailInput {
   email: string;
@@ -17,7 +18,7 @@ export class ResendVerificationEmailUseCase {
 
   constructor(
     private readonly userRepository: IUserRepository,
-    verificationTokenRepository: IVerificationTokenRepository,
+    private readonly verificationTokenRepository: IVerificationTokenRepository,
     emailService: IEmailService,
   ) {
     this.sendVerificationEmailUC = new SendVerificationEmailUseCase(
@@ -38,6 +39,17 @@ export class ResendVerificationEmailUseCase {
     // If already verified, no-op (security: don't reveal state explicitly)
     if (user.emailVerified) {
       return { message: 'If your email exists and is not verified, a new link has been sent.' };
+    }
+
+    // Cooldown check: 2 minutes
+    const activeToken = await this.verificationTokenRepository.findActiveByUserId(user.id, VerificationTokenType.EMAIL_VERIFICATION);
+    if (activeToken) {
+      const cooldownMs = 2 * 60 * 1000;
+      const timeSinceCreation = Date.now() - activeToken.createdAt.getTime();
+      if (timeSinceCreation < cooldownMs) {
+        // Return generic success to avoid enumeration and block spam
+        return { message: 'If your email exists and is not verified, a new link has been sent.' };
+      }
     }
 
     await this.sendVerificationEmailUC.execute({

@@ -26,6 +26,10 @@ services:
       - RATE_LIMIT_WINDOW_MS=${RATE_LIMIT_WINDOW_MS:-60000}
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-test}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-test}
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - AWS_ENDPOINT_URL=${AWS_ENDPOINT_URL:-http://localstack:4566}
     volumes:
       - ./keys:/app/keys:ro
     depends_on:
@@ -72,9 +76,28 @@ services:
     networks:
       - auth-network
 
+  # ─── LocalStack (AWS Services Mock) ────────────────────────────────────
+  localstack:
+    image: localstack/localstack:latest
+    ports:
+      - '4566:4566'            # LocalStack Gateway
+    environment:
+      - SERVICES=ses
+      - DEBUG=1
+      - DOCKER_HOST=unix:///var/run/docker.sock
+      - DEFAULT_REGION=us-east-1
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+    volumes:
+      - '/var/run/docker.sock:/var/run/docker.sock'
+      - localstack_data:/var/lib/localstack
+    networks:
+      - auth-network
+
 volumes:
   postgres_data:
   redis_data:
+  localstack_data:
 
 networks:
   auth-network:

@@ -217,8 +217,9 @@ Todas as variáveis de ambiente estão documentadas no arquivo `.env.example`:
 | `POST` | `/api/v1/auth/login/social` | Login com social provider | ❌ |
 | `POST` | `/api/v1/auth/refresh` | Renovar access token | ❌ |
 | `POST` | `/api/v1/auth/logout` | Logout (revogar tokens) | ✅ Bearer |
-| `POST` | `/api/v1/auth/verify-email` | Verificar e-mail com token | ❌ |
-| `POST` | `/api/v1/auth/resend-verification` | Reenviar e-mail de verificação | ❌ |
+| `POST` | `/api/v1/auth/verify-email` | Verificar e-mail com token via JSON | ❌ |
+| `GET` | `/api/v1/auth/verify-email` | Verificar e-mail clicando direto no link (Retorna HTML) | ❌ |
+| `POST` | `/api/v1/auth/resend-verification` | Reenviar e-mail de verificação (Rate Limited) | ❌ |
 | `POST` | `/api/v1/auth/forgot-password` | Solicitar reset de senha | ❌ |
 | `POST` | `/api/v1/auth/reset-password` | Redefinir senha com token | ❌ |
 | `PUT` | `/api/v1/auth/change-password` | Trocar senha (usuário logado) | ✅ Bearer |

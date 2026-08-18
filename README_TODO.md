@@ -6,7 +6,7 @@ Este documento lista as funcionalidades, melhorias de segurança e recursos de g
 
 ## 🔴 Alta Prioridade (Funcionalidade & Segurança Crítica)
 
-- [ ] **Verificação de E-mail (Email Verification):**
+- [x] **Verificação de E-mail (Email Verification):**
   - **Motivo:** Evitar que usuários criem contas usando e-mails de terceiros.
   - **Como:** Enviar um e-mail com um link/código de confirmação após o registro (`POST /auth/register`). Restringir acesso a certas rotas até a confirmação.
 
