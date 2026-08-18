@@ -7,7 +7,10 @@ import { VerificationTokenType } from '../../../domain/entities/role.entity.js';
 import {
   InvalidVerificationTokenError,
   ExpiredVerificationTokenError,
+  UserNotFoundError,
 } from '../../../domain/errors/domain-errors.js';
+import { WebhookEvent } from '../../../domain/entities/webhook.entity.js';
+import type { DispatchEventUseCase } from '../webhook/dispatch-event.use-case.js';
 
 export interface VerifyEmailInput {
   token: string;
@@ -21,6 +24,7 @@ export class VerifyEmailUseCase {
   constructor(
     private readonly userRepository: IUserRepository,
     private readonly verificationTokenRepository: IVerificationTokenRepository,
+    private readonly dispatchEventUC?: DispatchEventUseCase,
   ) {}
 
   async execute(input: VerifyEmailInput): Promise<VerifyEmailOutput> {
@@ -48,6 +52,17 @@ export class VerifyEmailUseCase {
 
     user.verifyEmail();
     await this.userRepository.update(user);
+
+    if (this.dispatchEventUC) {
+      this.dispatchEventUC.execute({
+        event: WebhookEvent.USER_EMAIL_VERIFIED,
+        payload: {
+          userId: user.id,
+          email: user.email,
+          timestamp: new Date().toISOString(),
+        },
+      }).catch(console.error);
+    }
 
     return { message: 'Email verified successfully.' };
   }

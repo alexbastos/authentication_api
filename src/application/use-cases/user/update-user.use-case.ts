@@ -9,6 +9,8 @@ import {
   UserAlreadyExistsError,
   ForbiddenError,
 } from '../../../domain/errors/domain-errors.js';
+import { WebhookEvent } from '../../../domain/entities/webhook.entity.js';
+import type { DispatchEventUseCase } from '../webhook/dispatch-event.use-case.js';
 
 export interface UpdateUserInput {
   userId: string;
@@ -42,6 +44,7 @@ export class UpdateUserUseCase {
   constructor(
     private readonly userRepository: IUserRepository,
     private readonly hasher: IHasher,
+    private readonly dispatchEventUC?: DispatchEventUseCase,
   ) {}
 
   async execute(input: UpdateUserInput): Promise<UpdateUserOutput> {
@@ -115,6 +118,17 @@ export class UpdateUserUseCase {
     }
 
     const updatedUser = await this.userRepository.update(user);
+
+    if (this.dispatchEventUC) {
+      this.dispatchEventUC.execute({
+        event: WebhookEvent.USER_UPDATED,
+        payload: {
+          userId: updatedUser.id,
+          email: updatedUser.email,
+          timestamp: new Date().toISOString(),
+        },
+      }).catch(console.error);
+    }
 
     return {
       id: updatedUser.id,

@@ -14,6 +14,9 @@ import { registerUserRoutes } from './adapters/http/routes/user.routes.js';
 import { registerClientAppRoutes } from './adapters/http/routes/client-app.routes.js';
 import { registerSessionRoutes } from './adapters/http/routes/session.routes.js';
 import { registerOrganizationRoutes } from './adapters/http/routes/organization.routes.js';
+import { registerRbacRoutes } from './adapters/http/routes/rbac.routes.js';
+import { registerWebhookRoutes } from './adapters/http/routes/webhook.routes.js';
+import { registerOAuthRoutes } from './adapters/http/routes/oauth.routes.js';
 import { DomainError } from './domain/errors/domain-errors.js';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -182,6 +185,9 @@ Authorization: Bearer <access_token>
   registerClientAppRoutes(app, container.clientAppController, container.authMiddleware);
   registerSessionRoutes(app, container.sessionController, container.authMiddleware);
   registerOrganizationRoutes(app, container.organizationController, container.authMiddleware);
+  registerRbacRoutes(app, container.rbacController, container.authMiddleware);
+  registerWebhookRoutes(app, container.webhookController, container.authMiddleware);
+  registerOAuthRoutes(app, container.oauthController, container.authMiddleware);
 
   // ─── Global Error Handler ───────────────────────────────────────────
   app.setErrorHandler((error: Error & { validation?: unknown; code?: string; statusCode?: number }, _request, reply) => {
@@ -199,6 +205,7 @@ Authorization: Bearer <access_token>
         FORBIDDEN: 403,
         EMAIL_NOT_VERIFIED: 403,
         ACCOUNT_LOCKED: 429,
+        EMAIL_COOLDOWN: 429,
         USER_ALREADY_EXISTS: 409,
         CLIENT_APP_ALREADY_EXISTS: 409,
         USER_NOT_FOUND: 404,
@@ -218,6 +225,14 @@ Authorization: Bearer <access_token>
         INVITATION_EXPIRED: 400,
         INVITATION_ALREADY_ACCEPTED: 400,
         INSUFFICIENT_ORG_ROLE: 403,
+        INSUFFICIENT_PERMISSIONS: 403,
+        ROLE_NOT_FOUND: 404,
+        WEBHOOK_NOT_FOUND: 404,
+        INVALID_REDIRECT_URI: 400,
+        INVALID_CODE_CHALLENGE: 400,
+        CONSENT_REQUIRED: 403,
+        INVALID_GRANT: 400,
+        AUTHORIZATION_CODE_EXPIRED: 400,
       };
 
       const statusCode = statusMap[error.code] ?? 500;

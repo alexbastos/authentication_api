@@ -7,6 +7,8 @@ import {
   InvalidCredentialsError,
   WeakPasswordError,
 } from '../../../domain/errors/domain-errors.js';
+import { WebhookEvent } from '../../../domain/entities/webhook.entity.js';
+import type { DispatchEventUseCase } from '../webhook/dispatch-event.use-case.js';
 
 export interface ChangePasswordInput {
   userId: string;
@@ -22,6 +24,7 @@ export class ChangePasswordUseCase {
   constructor(
     private readonly userRepository: IUserRepository,
     private readonly hasher: IHasher,
+    private readonly dispatchEventUC?: DispatchEventUseCase,
   ) {}
 
   async execute(input: ChangePasswordInput): Promise<ChangePasswordOutput> {
@@ -54,6 +57,16 @@ export class ChangePasswordUseCase {
     const newPasswordHash = await this.hasher.hash(input.newPassword);
     user.updatePassword(newPasswordHash);
     await this.userRepository.update(user);
+
+    if (this.dispatchEventUC) {
+      this.dispatchEventUC.execute({
+        event: WebhookEvent.USER_PASSWORD_CHANGED,
+        payload: {
+          userId: user.id,
+          timestamp: new Date().toISOString(),
+        },
+      }).catch(console.error);
+    }
 
     return { message: 'Password changed successfully.' };
   }

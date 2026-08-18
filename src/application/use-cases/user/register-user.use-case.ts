@@ -12,6 +12,8 @@ import {
 } from '../../../domain/errors/domain-errors.js';
 import { SendVerificationEmailUseCase } from '../auth/send-verification-email.use-case.js';
 import { v4 as uuidv4 } from 'uuid';
+import { WebhookEvent } from '../../../domain/entities/webhook.entity.js';
+import type { DispatchEventUseCase } from '../webhook/dispatch-event.use-case.js';
 
 export interface RegisterUserInput {
   name: string;
@@ -33,20 +35,13 @@ export interface RegisterUserOutput {
 }
 
 export class RegisterUserUseCase {
-  private readonly sendVerificationEmailUC: SendVerificationEmailUseCase;
-
   constructor(
     private readonly userRepository: IUserRepository,
     private readonly hasher: IHasher,
-    verificationTokenRepository: IVerificationTokenRepository,
-    emailService: IEmailService,
-  ) {
-    this.sendVerificationEmailUC = new SendVerificationEmailUseCase(
-      userRepository,
-      verificationTokenRepository,
-      emailService,
-    );
-  }
+    private readonly verificationTokenRepository?: IVerificationTokenRepository,
+    private readonly emailService?: IEmailService,
+    private readonly dispatchEventUC?: DispatchEventUseCase,
+  ) {}
 
   async execute(input: RegisterUserInput): Promise<RegisterUserOutput> {
     // 1. Validate password complexity
@@ -78,16 +73,36 @@ export class RegisterUserUseCase {
 
     const createdUser = await this.userRepository.create(user);
 
-    // 5. Send verification email (non-blocking — failure here shouldn't break registration)
-    try {
-      await this.sendVerificationEmailUC.execute({
-        userId: createdUser.id,
-        appUrl: input.appUrl,
-        expiryHours: input.verificationTokenExpiryHours,
-      });
-    } catch (err) {
-      // Log but don't fail registration if email sending fails
-      console.error('[RegisterUser] Failed to send verification email:', err);
+    // 5. Send verification email (non-blocking)
+    if (this.verificationTokenRepository && this.emailService) {
+      const sendVerificationEmailUC = new SendVerificationEmailUseCase(
+        this.userRepository,
+        this.verificationTokenRepository,
+        this.emailService,
+      );
+      try {
+        await sendVerificationEmailUC.execute({
+          userId: createdUser.id,
+          appUrl: input.appUrl,
+          expiryHours: input.verificationTokenExpiryHours,
+        });
+      } catch (err) {
+        console.error('[RegisterUser] Failed to send verification email:', err);
+      }
+    }
+
+    // 6. Dispatch Webhook event
+    if (this.dispatchEventUC) {
+      this.dispatchEventUC.execute({
+        event: WebhookEvent.USER_CREATED,
+        payload: {
+          userId: createdUser.id,
+          email: createdUser.email,
+          name: createdUser.name,
+          role: createdUser.role,
+          timestamp: new Date().toISOString(),
+        },
+      }).catch(console.error);
     }
 
     return {

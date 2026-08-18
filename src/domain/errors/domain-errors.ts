@@ -122,6 +122,15 @@ export class ExpiredVerificationTokenError extends DomainError {
   }
 }
 
+export class EmailCooldownError extends DomainError {
+  constructor(remainingSeconds: number) {
+    super(
+      `Please wait ${remainingSeconds} second(s) before requesting a new verification email.`,
+      'EMAIL_COOLDOWN',
+    );
+  }
+}
+
 // ─── Brute Force Protection Errors ──────────────────────────────────────
 
 export class AccountLockedError extends DomainError {
@@ -205,5 +214,83 @@ export class InvitationAlreadyAcceptedError extends DomainError {
 export class InsufficientOrgRoleError extends DomainError {
   constructor(requiredRole: string) {
     super(`This action requires at least ${requiredRole} role in the organization`, 'INSUFFICIENT_ORG_ROLE');
+  }
+}
+
+// ─── RBAC Errors ────────────────────────────────────────────────────────
+
+export class RoleNotFoundError extends DomainError {
+  constructor(identifier: string) {
+    super(`Role not found: ${identifier}`, 'ROLE_NOT_FOUND');
+  }
+}
+
+export class PermissionNotFoundError extends DomainError {
+  constructor(code: string) {
+    super(`Permission not found: ${code}`, 'PERMISSION_NOT_FOUND');
+  }
+}
+
+export class RoleAlreadyExistsError extends DomainError {
+  constructor(name: string) {
+    super(`Role "${name}" already exists`, 'ROLE_ALREADY_EXISTS');
+  }
+}
+
+export class SystemRoleModificationError extends DomainError {
+  constructor() {
+    super('System roles cannot be modified or deleted', 'SYSTEM_ROLE_MODIFICATION');
+  }
+}
+
+export class InsufficientPermissionsError extends DomainError {
+  constructor(required: string[]) {
+    super(`Missing required permissions: ${required.join(', ')}`, 'INSUFFICIENT_PERMISSIONS');
+  }
+}
+
+// ─── Webhook Errors ─────────────────────────────────────────────────────
+
+export class WebhookNotFoundError extends DomainError {
+  constructor(identifier: string) {
+    super(`Webhook not found: ${identifier}`, 'WEBHOOK_NOT_FOUND');
+  }
+}
+
+// ─── OAuth Errors ───────────────────────────────────────────────────────
+
+export class InvalidGrantError extends DomainError {
+  constructor(details: string) {
+    super(`Invalid grant: ${details}`, 'INVALID_GRANT');
+  }
+}
+
+export class InvalidRedirectUriError extends DomainError {
+  constructor() {
+    super('Invalid redirect URI', 'INVALID_REDIRECT_URI');
+  }
+}
+
+export class InvalidCodeChallengeError extends DomainError {
+  constructor() {
+    super('Invalid or missing PKCE code challenge', 'INVALID_CODE_CHALLENGE');
+  }
+}
+
+export class UnsupportedGrantTypeError extends DomainError {
+  constructor(grantType: string) {
+    super(`Unsupported grant type: ${grantType}`, 'UNSUPPORTED_GRANT_TYPE');
+  }
+}
+
+export class ConsentRequiredError extends DomainError {
+  constructor() {
+    super('User consent is required', 'CONSENT_REQUIRED');
+  }
+}
+
+export class AuthorizationCodeExpiredError extends DomainError {
+  constructor() {
+    super('Authorization code has expired', 'AUTHORIZATION_CODE_EXPIRED');
   }
 }

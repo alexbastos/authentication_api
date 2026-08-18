@@ -94,13 +94,20 @@ export function registerAuthRoutes(
 
   // ─── POST /authentication_api/api/v1/auth/resend-verification ──────────────────────────
   app.post('/authentication_api/api/v1/auth/resend-verification', {
+    config: {
+      rateLimit: {
+        max: 3,
+        timeWindow: '15 minutes',
+      },
+    },
     schema: {
       tags: ['Auth', 'Email Verification'],
       summary: 'Resend verification email',
-      description: 'Resends the verification email to the given address. Always returns success to prevent user enumeration.',
+      description: 'Resends the verification email to the given address. Always returns success to prevent user enumeration. Rate limited to 3 requests per 15 minutes per IP, with a 2-minute cooldown per email address.',
       body: ResendVerificationBodySchema,
       response: {
         200: MessageResponseSchema,
+        429: ErrorResponseSchema,
       },
     },
     handler: controller.resendVerification.bind(controller),

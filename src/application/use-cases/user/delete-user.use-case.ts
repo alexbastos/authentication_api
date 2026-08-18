@@ -7,6 +7,8 @@ import {
   UserNotFoundError,
   ForbiddenError,
 } from '../../../domain/errors/domain-errors.js';
+import { WebhookEvent } from '../../../domain/entities/webhook.entity.js';
+import type { DispatchEventUseCase } from '../webhook/dispatch-event.use-case.js';
 
 export interface DeleteUserInput {
   userId: string;
@@ -18,6 +20,7 @@ export class DeleteUserUseCase {
   constructor(
     private readonly userRepository: IUserRepository,
     private readonly refreshTokenRepository: IRefreshTokenRepository,
+    private readonly dispatchEventUC?: DispatchEventUseCase,
   ) {}
 
   async execute(input: DeleteUserInput): Promise<void> {
@@ -41,5 +44,15 @@ export class DeleteUserUseCase {
 
     // 4. Revoke all refresh tokens
     await this.refreshTokenRepository.revokeAllByUserId(input.userId);
+
+    if (this.dispatchEventUC) {
+      this.dispatchEventUC.execute({
+        event: WebhookEvent.USER_DELETED,
+        payload: {
+          userId: input.userId,
+          timestamp: new Date().toISOString(),
+        },
+      }).catch(console.error);
+    }
   }
 }

@@ -41,6 +41,9 @@ Este serviço é um **Identity Broker** centralizado que:
 - ✅ Possui **Swagger UI** auto-gerado para documentação dos endpoints
 - ✅ Gerencia **Client Apps** (aplicações terceiras que usam o IdP)
 - ✅ Suporta **Organizações / Multi-tenancy** (com convites e gestão de membros)
+- ✅ **RBAC Avançado** (permissões granulares além de roles simples)
+- ✅ **Webhooks** (disparo de eventos em tempo real como `USER_CREATED`)
+- ✅ **OAuth 2.0 PKCE / OIDC** (Fluxos de Authorization Code com suporte a Consentimento e UserInfo)
 - ✅ Preparado para rodar em **AWS ECS Fargate** com Docker
 
 ### Fluxo de Autenticação
@@ -269,6 +272,34 @@ Todas as variáveis de ambiente estão documentadas no arquivo `.env.example`:
 | `POST` | `/api/v1/organizations/invitations/accept` | Aceitar convite via token | ✅ Bearer |
 | `DELETE` | `/api/v1/organizations/:orgId/members/:userId` | Remover membro | ✅ Owner/Admin |
 | `PUT` | `/api/v1/organizations/:orgId/members/:userId/role`| Alterar role do membro | ✅ Owner |
+
+### RBAC (Role-Based Access Control) Avançado
+
+| Método | Endpoint | Descrição | Auth |
+|:---|:---|:---|:---|
+| `GET` | `/api/v1/rbac/permissions` | Listar permissões disponíveis no sistema | ✅ Admin |
+| `POST` | `/api/v1/rbac/roles` | Criar nova Custom Role com permissões | ✅ Admin |
+| `GET` | `/api/v1/rbac/roles` | Listar Custom Roles | ✅ Admin |
+| `POST` | `/api/v1/rbac/users/:userId/roles` | Atribuir Role a um Usuário | ✅ Admin |
+| `DELETE` | `/api/v1/rbac/users/:userId/roles/:roleId` | Revogar Role de um Usuário | ✅ Admin |
+
+### Webhooks
+
+| Método | Endpoint | Descrição | Auth |
+|:---|:---|:---|:---|
+| `POST` | `/api/v1/webhooks` | Registrar novo Webhook Endpoint | ✅ Admin |
+| `GET` | `/api/v1/webhooks` | Listar Webhooks Ativos | ✅ Admin |
+| `PUT` | `/api/v1/webhooks/:id` | Atualizar Webhook (URL, secret, events) | ✅ Admin |
+| `DELETE` | `/api/v1/webhooks/:id` | Desativar Webhook | ✅ Admin |
+
+### OAuth 2.0 PKCE / OIDC
+
+| Método | Endpoint | Descrição | Auth |
+|:---|:---|:---|:---|
+| `GET` | `/api/v1/oauth/authorize` | Authorization Endpoint (Geração de Code) | ✅ Bearer |
+| `POST` | `/api/v1/oauth/consent` | Salvar Consentimento de Scopes | ✅ Bearer |
+| `POST` | `/api/v1/oauth/token` | Token Endpoint (Troca de Code por JWT) | ❌ (Client Auth) |
+| `GET/POST`| `/api/v1/oauth/userinfo` | OIDC UserInfo Endpoint | ✅ Bearer |
 
 ### Outros
 
@@ -581,9 +612,12 @@ authentication_api/
 │   │   │   │   ├── update-user.use-case.ts
 │   │   │   │   ├── delete-user.use-case.ts
 │   │   │   │   └── list-users.use-case.ts
-│   │   │   └── client-app/              # Apps Clientes
-│   │   │       ├── register-client-app.use-case.ts
-│   │   │       └── list-client-apps.use-case.ts
+│   │   │   ├── client-app/              # Apps Clientes
+│   │   │   │   ├── register-client-app.use-case.ts
+│   │   │   │   └── list-client-apps.use-case.ts
+│   │   │   ├── rbac/                    # RBAC Avançado
+│   │   │   ├── webhook/                 # Disparo de Webhooks
+│   │   │   └── oauth/                   # OAuth PKCE / OIDC
 │   │   └── ports/                       # Interfaces para infraestrutura
 │   │       ├── hasher.port.ts           # IHasher
 │   │       ├── token-manager.port.ts    # ITokenManager
@@ -596,11 +630,17 @@ authentication_api/
 │   │       ├── controllers/             # Recebem HTTP, chamam Use Cases
 │   │       │   ├── auth.controller.ts
 │   │       │   ├── user.controller.ts
-│   │       │   └── client-app.controller.ts
+│   │       │   ├── client-app.controller.ts
+│   │       │   ├── rbac.controller.ts
+│   │       │   ├── webhook.controller.ts
+│   │       │   └── oauth.controller.ts
 │   │       ├── routes/                  # Definição de endpoints + schemas
 │   │       │   ├── auth.routes.ts
 │   │       │   ├── user.routes.ts
-│   │       │   └── client-app.routes.ts
+│   │       │   ├── client-app.routes.ts
+│   │       │   ├── rbac.routes.ts
+│   │       │   ├── webhook.routes.ts
+│   │       │   └── oauth.routes.ts
 │   │       ├── schemas/                 # TypeBox (validação + Swagger)
 │   │       │   ├── auth.schema.ts
 │   │       │   ├── user.schema.ts

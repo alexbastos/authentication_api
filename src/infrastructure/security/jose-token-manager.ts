@@ -3,7 +3,7 @@
 import * as jose from 'jose';
 import { readFile } from 'fs/promises';
 import { v4 as uuidv4 } from 'uuid';
-import type { ITokenManager, TokenPayload, JWKSResponse } from '../../application/ports/token-manager.port.js';
+import type { ITokenManager, TokenPayload, IdTokenPayload, JWKSResponse } from '../../application/ports/token-manager.port.js';
 import type { Role } from '../../domain/entities/role.entity.js';
 
 type JoseKey = Awaited<ReturnType<typeof jose.importPKCS8>>;
@@ -38,28 +38,60 @@ export class JoseTokenManager implements ITokenManager {
     this.jwk.use = 'sig';
   }
 
-  async generateAccessToken(payload: { sub: string; email: string; role: Role }): Promise<string> {
+  async generateAccessToken(payload: {
+    sub: string;
+    email: string;
+    role: Role;
+    permissions?: string[];
+    scopes?: string[];
+    aud?: string;
+  }): Promise<string> {
     await this.loadKeys();
 
     const jti = uuidv4();
-
-    const token = await new jose.SignJWT({
+    const jwt = new jose.SignJWT({
       email: payload.email,
       role: payload.role,
+      ...(payload.permissions ? { permissions: payload.permissions } : {}),
+      ...(payload.scopes ? { scopes: payload.scopes } : {}),
       jti,
     })
       .setProtectedHeader({ alg: 'RS256', kid: 'auth-key-1' })
       .setSubject(payload.sub)
       .setIssuedAt()
       .setIssuer(this.issuer)
-      .setExpirationTime(this.accessTokenExpiry)
-      .sign(this.privateKey!);
+      .setExpirationTime(this.accessTokenExpiry);
 
-    return token;
+    if (payload.aud) {
+      jwt.setAudience(payload.aud);
+    }
+
+    return jwt.sign(this.privateKey!);
   }
 
   generateRefreshToken(): string {
     return uuidv4() + uuidv4().replace(/-/g, '');
+  }
+
+  async generateIdToken(payload: IdTokenPayload): Promise<string> {
+    await this.loadKeys();
+
+    const claims: Record<string, unknown> = {
+      email: payload.email,
+      name: payload.name,
+      ...(payload.picture ? { picture: payload.picture } : {}),
+      ...(payload.nonce ? { nonce: payload.nonce } : {}),
+      ...(payload.auth_time ? { auth_time: payload.auth_time } : {}),
+    };
+
+    return new jose.SignJWT(claims)
+      .setProtectedHeader({ alg: 'RS256', kid: 'auth-key-1' })
+      .setSubject(payload.sub)
+      .setAudience(payload.aud)
+      .setIssuedAt()
+      .setIssuer(this.issuer)
+      .setExpirationTime('1h')
+      .sign(this.privateKey!);
   }
 
   async verifyAccessToken(token: string): Promise<TokenPayload> {
@@ -73,10 +105,12 @@ export class JoseTokenManager implements ITokenManager {
       sub: payload.sub as string,
       email: payload.email as string,
       role: payload.role as Role,
+      permissions: (payload.permissions as string[]) ?? undefined,
       jti: payload.jti as string,
       iat: payload.iat as number,
       exp: payload.exp as number,
       iss: payload.iss as string,
+      aud: payload.aud as string | undefined,
     };
   }
 

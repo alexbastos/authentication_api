@@ -12,6 +12,12 @@ import { PrismaVerificationTokenRepository } from './infrastructure/database/rep
 import { PrismaLoginHistoryRepository } from './infrastructure/database/repositories/prisma-login-history.repository.js';
 import { PrismaOrganizationRepository } from './infrastructure/database/repositories/prisma-organization.repository.js';
 import { PrismaOrgInvitationRepository } from './infrastructure/database/repositories/prisma-org-invitation.repository.js';
+import { PrismaPermissionRepository } from './infrastructure/database/repositories/prisma-permission.repository.js';
+import { PrismaCustomRoleRepository } from './infrastructure/database/repositories/prisma-custom-role.repository.js';
+import { PrismaWebhookRepository } from './infrastructure/database/repositories/prisma-webhook.repository.js';
+import { PrismaAuthorizationCodeRepository } from './infrastructure/database/repositories/prisma-authorization-code.repository.js';
+import { PrismaOAuthConsentRepository } from './infrastructure/database/repositories/prisma-oauth-consent.repository.js';
+import { HttpWebhookDispatcher } from './infrastructure/webhook/webhook-dispatcher.js';
 import { RedisCacheProvider } from './infrastructure/cache/redis-cache.provider.js';
 import { BcryptHasher } from './infrastructure/security/bcrypt-hasher.js';
 import { JoseTokenManager } from './infrastructure/security/jose-token-manager.js';
@@ -55,7 +61,26 @@ import { InviteMemberUseCase } from './application/use-cases/organization/invite
 import { AcceptInvitationUseCase } from './application/use-cases/organization/accept-invitation.use-case.js';
 import { RemoveMemberUseCase } from './application/use-cases/organization/remove-member.use-case.js';
 import { ChangeMemberRoleUseCase } from './application/use-cases/organization/change-member-role.use-case.js';
-
+// Use Cases — RBAC
+import { ListPermissionsUseCase } from './application/use-cases/rbac/list-permissions.use-case.js';
+import { CreateCustomRoleUseCase } from './application/use-cases/rbac/create-custom-role.use-case.js';
+import { UpdateCustomRoleUseCase } from './application/use-cases/rbac/update-custom-role.use-case.js';
+import { DeleteCustomRoleUseCase } from './application/use-cases/rbac/delete-custom-role.use-case.js';
+import { AssignRoleToUserUseCase } from './application/use-cases/rbac/assign-role-to-user.use-case.js';
+import { RemoveRoleFromUserUseCase } from './application/use-cases/rbac/remove-role-from-user.use-case.js';
+import { GetUserPermissionsUseCase } from './application/use-cases/rbac/get-user-permissions.use-case.js';
+// Use Cases — Webhook
+import { RegisterWebhookUseCase } from './application/use-cases/webhook/register-webhook.use-case.js';
+import { ListWebhooksUseCase } from './application/use-cases/webhook/list-webhooks.use-case.js';
+import { UpdateWebhookUseCase } from './application/use-cases/webhook/update-webhook.use-case.js';
+import { DeleteWebhookUseCase } from './application/use-cases/webhook/delete-webhook.use-case.js';
+import { DispatchEventUseCase } from './application/use-cases/webhook/dispatch-event.use-case.js';
+import { RetryFailedDeliveriesUseCase } from './application/use-cases/webhook/retry-failed-deliveries.use-case.js';
+// Use Cases — OAuth
+import { AuthorizeUseCase } from './application/use-cases/oauth/authorize.use-case.js';
+import { GrantConsentUseCase } from './application/use-cases/oauth/grant-consent.use-case.js';
+import { TokenExchangeUseCase } from './application/use-cases/oauth/token-exchange.use-case.js';
+import { UserInfoUseCase } from './application/use-cases/oauth/userinfo.use-case.js';
 
 // Controllers
 import { AuthController } from './adapters/http/controllers/auth.controller.js';
@@ -63,6 +88,9 @@ import { UserController } from './adapters/http/controllers/user.controller.js';
 import { ClientAppController } from './adapters/http/controllers/client-app.controller.js';
 import { SessionController } from './adapters/http/controllers/session.controller.js';
 import { OrganizationController } from './adapters/http/controllers/organization.controller.js';
+import { RbacController } from './adapters/http/controllers/rbac.controller.js';
+import { WebhookController } from './adapters/http/controllers/webhook.controller.js';
+import { OAuthController } from './adapters/http/controllers/oauth.controller.js';
 
 // Middleware
 import { createAuthMiddleware } from './adapters/http/middlewares/auth.middleware.js';
@@ -81,6 +109,9 @@ export interface Container {
   clientAppController: ClientAppController;
   sessionController: SessionController;
   organizationController: OrganizationController;
+  rbacController: RbacController;
+  webhookController: WebhookController;
+  oauthController: OAuthController;
   orgRepository: PrismaOrganizationRepository;
 
   // Middleware
@@ -131,13 +162,23 @@ export function createContainer(env: Env): Container {
   const loginHistoryRepository = new PrismaLoginHistoryRepository(prisma);
   const orgRepository = new PrismaOrganizationRepository(prisma);
   const orgInvitationRepository = new PrismaOrgInvitationRepository(prisma);
+  const permissionRepository = new PrismaPermissionRepository(prisma);
+  const customRoleRepository = new PrismaCustomRoleRepository(prisma);
+  const webhookRepository = new PrismaWebhookRepository(prisma);
+  const authCodeRepository = new PrismaAuthorizationCodeRepository(prisma);
+  const oauthConsentRepository = new PrismaOAuthConsentRepository(prisma);
+
+  const webhookDispatcher = new HttpWebhookDispatcher(5000);
 
   // ─── Use Cases ──────────────────────────────────────────────────────
+  const dispatchEventUC = new DispatchEventUseCase(webhookRepository, webhookDispatcher);
+  const retryFailedDeliveriesUC = new RetryFailedDeliveriesUseCase(webhookRepository, webhookDispatcher);
+
   const authenticateUserUC = new AuthenticateUserUseCase(
     userRepository, refreshTokenRepository, hasher, tokenManager,
     env.JWT_REFRESH_TOKEN_EXPIRY_DAYS,
     redis, env.LOGIN_MAX_ATTEMPTS, env.LOGIN_LOCKOUT_MINUTES,
-    loginHistoryRepository,
+    loginHistoryRepository, dispatchEventUC,
   );
   const authenticateSocialUC = new AuthenticateSocialUseCase(
     userRepository, refreshTokenRepository, tokenManager, socialRegistry,
@@ -147,11 +188,11 @@ export function createContainer(env: Env): Container {
   const refreshTokenUC = new RefreshTokenUseCase(
     userRepository, refreshTokenRepository, tokenManager, env.JWT_REFRESH_TOKEN_EXPIRY_DAYS,
   );
-  const revokeTokenUC = new RevokeTokenUseCase(refreshTokenRepository, tokenManager, redis);
+  const revokeTokenUC = new RevokeTokenUseCase(refreshTokenRepository, tokenManager, redis, dispatchEventUC);
   const registerUserUC = new RegisterUserUseCase(
-    userRepository, hasher, verificationTokenRepository, emailService,
+    userRepository, hasher, verificationTokenRepository, emailService, dispatchEventUC,
   );
-  const verifyEmailUC = new VerifyEmailUseCase(userRepository, verificationTokenRepository);
+  const verifyEmailUC = new VerifyEmailUseCase(userRepository, verificationTokenRepository, dispatchEventUC);
   const resendVerificationEmailUC = new ResendVerificationEmailUseCase(
     userRepository, verificationTokenRepository, emailService,
   );
@@ -161,12 +202,12 @@ export function createContainer(env: Env): Container {
   const resetPasswordUC = new ResetPasswordUseCase(
     userRepository, verificationTokenRepository, refreshTokenRepository, hasher,
   );
-  const changePasswordUC = new ChangePasswordUseCase(userRepository, hasher);
+  const changePasswordUC = new ChangePasswordUseCase(userRepository, hasher, dispatchEventUC);
   const getUserUC = new GetUserUseCase(userRepository);
-  const updateUserUC = new UpdateUserUseCase(userRepository, hasher);
-  const deleteUserUC = new DeleteUserUseCase(userRepository, refreshTokenRepository);
+  const updateUserUC = new UpdateUserUseCase(userRepository, hasher, dispatchEventUC);
+  const deleteUserUC = new DeleteUserUseCase(userRepository, refreshTokenRepository, dispatchEventUC);
   const listUsersUC = new ListUsersUseCase(userRepository);
-  const registerClientAppUC = new RegisterClientAppUseCase(clientAppRepository);
+  const registerClientAppUC = new RegisterClientAppUseCase(clientAppRepository, hasher);
   const listClientAppsUC = new ListClientAppsUseCase(clientAppRepository);
 
   // Session use cases
@@ -188,6 +229,26 @@ export function createContainer(env: Env): Container {
   const removeMemberUC = new RemoveMemberUseCase(orgRepository);
   const changeMemberRoleUC = new ChangeMemberRoleUseCase(orgRepository);
 
+  // RBAC use cases
+  const listPermissionsUC = new ListPermissionsUseCase(permissionRepository);
+  const createCustomRoleUC = new CreateCustomRoleUseCase(customRoleRepository, permissionRepository);
+  const updateCustomRoleUC = new UpdateCustomRoleUseCase(customRoleRepository, permissionRepository);
+  const deleteCustomRoleUC = new DeleteCustomRoleUseCase(customRoleRepository);
+  const assignRoleToUserUC = new AssignRoleToUserUseCase(customRoleRepository, userRepository);
+  const removeRoleFromUserUC = new RemoveRoleFromUserUseCase(customRoleRepository);
+  const getUserPermissionsUC = new GetUserPermissionsUseCase(customRoleRepository);
+
+  // Webhook use cases
+  const registerWebhookUC = new RegisterWebhookUseCase(webhookRepository);
+  const listWebhooksUC = new ListWebhooksUseCase(webhookRepository);
+  const updateWebhookUC = new UpdateWebhookUseCase(webhookRepository);
+  const deleteWebhookUC = new DeleteWebhookUseCase(webhookRepository);
+
+  // OAuth use cases
+  const authorizeUC = new AuthorizeUseCase(clientAppRepository, authCodeRepository, oauthConsentRepository, 5);
+  const grantConsentUC = new GrantConsentUseCase(oauthConsentRepository, clientAppRepository);
+  const tokenExchangeUC = new TokenExchangeUseCase(authCodeRepository, clientAppRepository, userRepository, tokenManager, hasher);
+  const userInfoUC = new UserInfoUseCase(userRepository);
 
   // ─── Middleware ─────────────────────────────────────────────────────
   const authMiddleware = createAuthMiddleware(tokenManager, redis);
@@ -211,6 +272,18 @@ export function createContainer(env: Env): Container {
     updateOrganizationUC, inviteMemberUC, acceptInvitationUC,
     removeMemberUC, changeMemberRoleUC, orgRepository,
   );
+  const rbacController = new RbacController(
+    listPermissionsUC, createCustomRoleUC, updateCustomRoleUC,
+    deleteCustomRoleUC, assignRoleToUserUC, removeRoleFromUserUC,
+    getUserPermissionsUC, customRoleRepository,
+  );
+  const webhookController = new WebhookController(
+    registerWebhookUC, listWebhooksUC, updateWebhookUC,
+    deleteWebhookUC, dispatchEventUC, webhookRepository,
+  );
+  const oauthController = new OAuthController(
+    authorizeUC, grantConsentUC, tokenExchangeUC, userInfoUC,
+  );
 
   // ─── Shutdown ───────────────────────────────────────────────────────
   const shutdown = async () => {
@@ -231,6 +304,9 @@ export function createContainer(env: Env): Container {
     clientAppController,
     sessionController,
     organizationController,
+    rbacController,
+    webhookController,
+    oauthController,
     orgRepository,
     authMiddleware,
     shutdown,

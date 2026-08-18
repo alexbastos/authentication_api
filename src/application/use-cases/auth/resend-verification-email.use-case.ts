@@ -4,7 +4,10 @@ import type { IUserRepository } from '../../../domain/repositories/user.reposito
 import type { IVerificationTokenRepository } from '../../../domain/repositories/verification-token.repository.js';
 import type { IEmailService } from '../../ports/email.port.js';
 import { SendVerificationEmailUseCase } from './send-verification-email.use-case.js';
-import { UserNotFoundError } from '../../../domain/errors/domain-errors.js';
+import { VerificationTokenType } from '../../../domain/entities/role.entity.js';
+import { EmailCooldownError } from '../../../domain/errors/domain-errors.js';
+
+const COOLDOWN_SECONDS = 120; // 2 minutes between resend attempts per email
 
 export interface ResendVerificationEmailInput {
   email: string;
@@ -17,7 +20,7 @@ export class ResendVerificationEmailUseCase {
 
   constructor(
     private readonly userRepository: IUserRepository,
-    verificationTokenRepository: IVerificationTokenRepository,
+    private readonly verificationTokenRepository: IVerificationTokenRepository,
     emailService: IEmailService,
   ) {
     this.sendVerificationEmailUC = new SendVerificationEmailUseCase(
@@ -38,6 +41,23 @@ export class ResendVerificationEmailUseCase {
     // If already verified, no-op (security: don't reveal state explicitly)
     if (user.emailVerified) {
       return { message: 'If your email exists and is not verified, a new link has been sent.' };
+    }
+
+    // ─── Cooldown check: prevent abuse per email address ───────────────
+    const latestToken = await this.verificationTokenRepository.findLatestByUserIdAndType(
+      user.id,
+      VerificationTokenType.EMAIL_VERIFICATION,
+    );
+
+    if (latestToken) {
+      const elapsedSeconds = Math.floor(
+        (Date.now() - latestToken.createdAt.getTime()) / 1000,
+      );
+
+      if (elapsedSeconds < COOLDOWN_SECONDS) {
+        const remaining = COOLDOWN_SECONDS - elapsedSeconds;
+        throw new EmailCooldownError(remaining);
+      }
     }
 
     await this.sendVerificationEmailUC.execute({

@@ -17,6 +17,8 @@ import {
 } from '../../../domain/errors/domain-errors.js';
 import { parseDeviceName } from '../../../infrastructure/security/user-agent.util.js';
 import { v4 as uuidv4 } from 'uuid';
+import { WebhookEvent } from '../../../domain/entities/webhook.entity.js';
+import type { DispatchEventUseCase } from '../webhook/dispatch-event.use-case.js';
 
 const BRUTE_FORCE_PREFIX = 'login_attempts:';
 
@@ -54,6 +56,7 @@ export class AuthenticateUserUseCase {
     private readonly maxLoginAttempts: number = 5,
     private readonly lockoutMinutes: number = 15,
     private readonly loginHistoryRepository?: ILoginHistoryRepository,
+    private readonly dispatchEventUC?: DispatchEventUseCase,
   ) {}
 
   async execute(input: AuthenticateUserInput): Promise<AuthenticateUserOutput> {
@@ -173,7 +176,21 @@ export class AuthenticateUserUseCase {
       userAgent: input.userAgent ?? null,
       deviceName,
       failReason: null,
-    });
+    }).catch(console.error);
+
+    if (this.dispatchEventUC) {
+      this.dispatchEventUC.execute({
+        event: WebhookEvent.USER_LOGIN,
+        payload: {
+          userId: user.id,
+          email: user.email,
+          ipAddress: input.ipAddress ?? null,
+          userAgent: input.userAgent ?? null,
+          deviceName,
+          timestamp: new Date().toISOString(),
+        },
+      }).catch(console.error); // Fire-and-forget logging handled inside if needed
+    }
 
     return {
       accessToken,

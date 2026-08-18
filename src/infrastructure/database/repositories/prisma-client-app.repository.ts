@@ -17,6 +17,9 @@ export class PrismaClientAppRepository implements IClientAppRepository {
         clientSecret: data.clientSecret,
         redirectUrls: data.redirectUrls,
         isActive: data.isActive,
+        grantTypes: data.grantTypes,
+        scopes: data.scopes,
+        tokenEndpointAuth: data.tokenEndpointAuth,
       },
     });
 
@@ -50,6 +53,9 @@ export class PrismaClientAppRepository implements IClientAppRepository {
         name: data.name,
         redirectUrls: data.redirectUrls,
         isActive: data.isActive,
+        grantTypes: data.grantTypes,
+        scopes: data.scopes,
+        tokenEndpointAuth: data.tokenEndpointAuth,
       },
     });
     return this.toDomain(record);
@@ -63,6 +69,9 @@ export class PrismaClientAppRepository implements IClientAppRepository {
       clientSecret: record.clientSecret,
       redirectUrls: record.redirectUrls,
       isActive: record.isActive,
+      grantTypes: record.grantTypes,
+      scopes: record.scopes,
+      tokenEndpointAuth: record.tokenEndpointAuth,
       createdAt: record.createdAt,
       updatedAt: record.updatedAt,
     });

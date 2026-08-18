@@ -26,6 +26,9 @@ services:
       - RATE_LIMIT_WINDOW_MS=${RATE_LIMIT_WINDOW_MS:-60000}
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - EMAIL_PROVIDER=${EMAIL_PROVIDER:-ses}
+      - EMAIL_FROM_ADDRESS=${EMAIL_FROM_ADDRESS:-capcodesolucoes@gmail.com}
+      - AWS_REGION=${AWS_REGION:-us-east-1}
     volumes:
       - ./keys:/app/keys:ro
     depends_on:

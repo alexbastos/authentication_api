@@ -45,6 +45,15 @@ export class PrismaVerificationTokenRepository implements IVerificationTokenRepo
     });
   }
 
+  async findLatestByUserIdAndType(userId: string, type: VerificationTokenType): Promise<VerificationToken | null> {
+    const record = await this.prisma.verificationToken.findFirst({
+      where: { userId, type: type as any },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!record) return null;
+    return this.toDomain(record);
+  }
+
   private toDomain(record: any): VerificationToken {
     return new VerificationToken({
       id: record.id,

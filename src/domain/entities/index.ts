@@ -13,3 +13,5 @@ export { Organization, OrganizationMember } from './organization.entity.js';
 export type { OrganizationProps, OrganizationMemberProps } from './organization.entity.js';
 export { OrgInvitation } from './org-invitation.entity.js';
 export type { OrgInvitationProps } from './org-invitation.entity.js';
+export { Permission, CustomRole } from './permission.entity.js';
+export type { PermissionProps, CustomRoleProps } from './permission.entity.js';
