@@ -9,7 +9,7 @@ const __dirname = dirname(__filename);
 function runGitCommand(command) {
   try {
     return execSync(command, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
-  } catch (err) {
+  } catch {
     return null;
   }
 }
@@ -17,30 +17,30 @@ function runGitCommand(command) {
 function generateVersion() {
   const rootDir = resolve(__dirname, '..');
   const isGitRepo = existsSync(resolve(rootDir, '.git'));
-  
-  const versionInfo = {
-    branch: 'unknown',
-    commit: 'unknown',
-    date: new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })
-  };
 
-  if (isGitRepo) {
-    const branch = runGitCommand('git rev-parse --abbrev-ref HEAD');
-    const commit = runGitCommand('git rev-parse --short HEAD');
-    
-    if (branch) versionInfo.branch = branch;
-    if (commit) versionInfo.commit = commit;
-  }
+  // Lê do git se disponível (dev local), senão lê das env vars (Docker build)
+  const branch =
+    (isGitRepo ? runGitCommand('git rev-parse --abbrev-ref HEAD') : null) ??
+    process.env.GIT_BRANCH ??
+    'unknown';
+
+  const commit =
+    (isGitRepo ? runGitCommand('git rev-parse --short HEAD') : null) ??
+    process.env.GIT_COMMIT ??
+    'unknown';
+
+  const date = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+
+  const versionInfo = { branch, commit, date };
 
   const outputPath = resolve(rootDir, 'version.json');
-  
   const dir = dirname(outputPath);
   if (!existsSync(dir)) {
     mkdirSync(dir, { recursive: true });
   }
 
   writeFileSync(outputPath, JSON.stringify(versionInfo, null, 2), 'utf8');
-  console.log(`[Build] Version file generated at ${outputPath}`);
+  console.log(`[Build] Version: branch=${branch} commit=${commit} date=${date}`);
 }
 
 generateVersion();
