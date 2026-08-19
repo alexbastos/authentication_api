@@ -9,6 +9,7 @@ RUN npm ci --frozen-lockfile 2>/dev/null || npm install
 
 # ─── Stage 2: Builder ─────────────────────────────────────────────────────
 FROM node:22-alpine AS builder
+RUN apk add --no-cache git
 WORKDIR /app
 
 # Git info passed from docker-compose build args
