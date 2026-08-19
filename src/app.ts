@@ -69,10 +69,24 @@ export async function buildApp(env: Env, container: Container): Promise<FastifyI
     credentials: true,
   });
 
+  // Test Redis connectivity before using it for rate-limit.
+  // If Redis is unavailable, fall back to in-memory store to prevent
+  // 503 "Service Unavailable" on ALL requests.
+  let rateLimitRedis: Record<string, unknown> | undefined;
+  try {
+    const pong = await container.redis.getClient().ping();
+    if (pong === 'PONG') {
+      rateLimitRedis = { redis: container.redis.getClient() };
+      app.log.info('✅ Rate-limit using Redis store');
+    }
+  } catch (err) {
+    app.log.warn('⚠️  Redis unavailable for rate-limit, falling back to in-memory store');
+  }
+
   await app.register(rateLimit, {
     max: env.RATE_LIMIT_MAX,
     timeWindow: env.RATE_LIMIT_WINDOW_MS,
-    redis: container.redis.getClient(),
+    ...rateLimitRedis,
   });
 
   // ─── Swagger / OpenAPI ──────────────────────────────────────────────
