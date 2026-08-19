@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  # ─── Authentication API ────────────────────────────────────────────────
+  # ─── Authentication API ──────────────────────────────────────────────────
   app:
     build:
       context: .
@@ -9,29 +9,14 @@ services:
     ports:
       - '3000:3000'
     environment:
-      - NODE_ENV=${NODE_ENV:-development}
-      - PORT=3000
-      - HOST=0.0.0.0
-      - DATABASE_URL=${DATABASE_URL}
+      # Sobrescreve variáveis críticas independente do .env
+      - NODE_ENV=production
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - JWT_PRIVATE_KEY_PATH=/app/keys/private.pem
       - JWT_PUBLIC_KEY_PATH=/app/keys/public.pem
-      - JWT_ISSUER=${JWT_ISSUER:-authentication-api}
-      - JWT_ACCESS_TOKEN_EXPIRY=${JWT_ACCESS_TOKEN_EXPIRY:-15m}
-      - JWT_REFRESH_TOKEN_EXPIRY_DAYS=${JWT_REFRESH_TOKEN_EXPIRY_DAYS:-7}
-      - BCRYPT_SALT_ROUNDS=${BCRYPT_SALT_ROUNDS:-12}
-      - CORS_ORIGIN=${CORS_ORIGIN}
-      - RATE_LIMIT_MAX=${RATE_LIMIT_MAX:-100}
-      - RATE_LIMIT_WINDOW_MS=${RATE_LIMIT_WINDOW_MS:-60000}
-      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
-      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
-      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-test}
-      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-test}
-      - AWS_REGION=${AWS_REGION:-us-east-1}
-      - AWS_ENDPOINT_URL=${AWS_ENDPOINT_URL:-http://localstack:4566}
-      - EMAIL_PROVIDER=${EMAIL_PROVIDER:-ses}
-      - EMAIL_FROM_ADDRESS=${EMAIL_FROM_ADDRESS}
+    env_file:
+      - .env
     volumes:
       - ./keys:/app/keys:ro
     depends_on:
@@ -39,12 +24,11 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      localstack:
-        condition: service_started
     networks:
       - auth-network
+    restart: unless-stopped
 
-  # ─── PostgreSQL ────────────────────────────────────────────────────────
+  # ─── PostgreSQL ──────────────────────────────────────────────────────────
   postgres:
     image: postgres:15-alpine
     ports:
@@ -63,8 +47,9 @@ services:
       retries: 5
     networks:
       - auth-network
+    restart: unless-stopped
 
-  # ─── Redis ─────────────────────────────────────────────────────────────
+  # ─── Redis (Rate Limit e Blocklist) ─────────────────────────────────────
   redis:
     image: redis:7-alpine
     ports:
@@ -79,29 +64,11 @@ services:
       retries: 5
     networks:
       - auth-network
-
-  # ─── LocalStack (AWS Services Mock) ────────────────────────────────────
-  localstack:
-    image: localstack/localstack:latest
-    ports:
-      - '4566:4566'            # LocalStack Gateway
-    environment:
-      - SERVICES=ses
-      - DEBUG=1
-      - DOCKER_HOST=unix:///var/run/docker.sock
-      - DEFAULT_REGION=us-east-1
-      - AWS_ACCESS_KEY_ID=test
-      - AWS_SECRET_ACCESS_KEY=test
-    volumes:
-      - '/var/run/docker.sock:/var/run/docker.sock'
-      - localstack_data:/var/lib/localstack
-    networks:
-      - auth-network
+    restart: unless-stopped
 
 volumes:
   postgres_data:
   redis_data:
-  localstack_data:
 
 networks:
   auth-network:
