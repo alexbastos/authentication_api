@@ -39,13 +39,14 @@ const envSchema = z.object({
   // Bcrypt
   BCRYPT_SALT_ROUNDS: z.coerce.number().default(12),
 
-  // Application URL (used for email links)
-  APP_URL: z.string().default('http://localhost:3000'),
+  // Frontend URL (used for email links — must point to the frontend app, NOT the API)
+  APP_URL: z.string().default('http://localhost:3001'),
 
   // Email Configuration
   EMAIL_PROVIDER: z.enum(['console', 'ses']).default('console'),
   EMAIL_FROM_ADDRESS: z.string().default('capcodesolucoes@gmail.com'),
   AWS_REGION: z.string().default('us-east-1'),
+  AWS_ENDPOINT_URL: z.string().optional(),
 
   // Email Verification
   VERIFICATION_TOKEN_EXPIRY_HOURS: z.coerce.number().default(24),

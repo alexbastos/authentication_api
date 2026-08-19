@@ -6,11 +6,15 @@ export class AwsSesEmailService implements IEmailService {
   private readonly sourceEmail: string;
   private readonly appUrl: string;
 
-  constructor(sourceEmail: string, appUrl: string, region: string) {
+  constructor(sourceEmail: string, appUrl: string, region: string, endpointUrl?: string) {
     this.sourceEmail = sourceEmail;
     this.appUrl = appUrl;
     // Em produção via EC2 Instance Profile, as credenciais são resolvidas automaticamente
-    this.client = new SESClient({ region });
+    // Em dev com LocalStack, o endpointUrl redireciona para o mock local
+    this.client = new SESClient({
+      region,
+      ...(endpointUrl ? { endpoint: endpointUrl } : {}),
+    });
   }
 
   async sendVerificationEmail(to: string, name: string, token: string): Promise<void> {

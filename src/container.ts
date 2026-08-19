@@ -93,7 +93,7 @@ export function createContainer(env: Env): Container {
 
   // Email service (console for dev, SES for prod)
   const emailService = env.EMAIL_PROVIDER === 'ses'
-    ? new AwsSesEmailService(env.EMAIL_FROM_ADDRESS, env.APP_URL, env.AWS_REGION)
+    ? new AwsSesEmailService(env.EMAIL_FROM_ADDRESS, env.APP_URL, env.AWS_REGION, env.AWS_ENDPOINT_URL)
     : new ConsoleEmailService();
 
   // ─── Repositories ───────────────────────────────────────────────────
