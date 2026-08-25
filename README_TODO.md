@@ -1,28 +1,31 @@
 # TODO: Evolução da Authentication API
 
-Este documento lista as funcionalidades, melhorias de segurança e recursos de gerenciamento que devem ser implementados na API de Autenticação para atingir um nível de maturidade de produção completo.
+Este documento lista as funcionalidades, melhorias de segurança e recursos de gerenciamento da API de Autenticação, com o status atual de cada item.
+
+> **Última atualização:** 25/08/2026
 
 ---
 
 ## 🔴 Alta Prioridade (Funcionalidade & Segurança Crítica)
 
 - [x] **Verificação de E-mail (Email Verification):**
-  - **Motivo:** Evitar que usuários criem contas usando e-mails de terceiros.
-  - **Como:** Enviar um e-mail com um link/código de confirmação após o registro (`POST /auth/register`). Restringir acesso a certas rotas até a confirmação.
+  - **Status:** ✅ Implementado
+  - Envio automático de e-mail de verificação após registro via AWS SES. Rate-limit de 3 requisições/15min por IP e cooldown de 2 minutos por e-mail no reenvio. Endpoints: `POST /auth/verify-email`, `POST /auth/resend-verification`.
 
 - [x] **Esqueci minha senha (Password Reset):**
-  - **Motivo:** Fluxo essencial para recuperação de acesso.
-  - **Como:** Endpoint para solicitar reset (envia e-mail com token) e endpoint para redefinir a senha usando o token recebido.
+  - **Status:** ✅ Implementado
+  - Fluxo completo com token de expiração de 1 hora. Endpoints: `POST /auth/forgot-password`, `POST /auth/reset-password`. Revoga todas as sessões ativas ao resetar.
 
 - [x] **Troca de Senha Autenticada:**
-  - **Motivo:** Permitir que o usuário logado altere sua própria senha.
-  - **Como:** Endpoint `PUT /users/me/password` que exija a senha atual para confirmar a troca.
+  - **Status:** ✅ Implementado
+  - Endpoint `PUT /auth/change-password` com validação da senha atual e verificação de complexidade.
 
 - [x] **Proteção contra Força Bruta (Brute Force Protection):**
-  - **Motivo:** Impedir ataques automatizados de adivinhação de senha.
-  - **Como:** Bloqueio temporário da conta ou do IP após X tentativas de login falhas. Pode usar o Redis para armazenar as tentativas.
+  - **Status:** ✅ Implementado
+  - Bloqueio após 5 tentativas falhas em 15 minutos por IP. Utiliza Redis com fallback resiliente (rate-limit não derruba a API se o Redis cair).
 
 - [ ] **Autenticação de 2 Fatores (MFA/2FA):**
+  - **Status:** ⏳ Pendente
   - **Motivo:** Camada extra de segurança, essencial para perfis de `ADMIN` ou dados sensíveis.
   - **Como:** Implementar TOTP (Google Authenticator, Authy) ou envio de código via e-mail/SMS.
 
@@ -30,37 +33,55 @@ Este documento lista as funcionalidades, melhorias de segurança e recursos de g
 
 ## 🟡 Média Prioridade (Experiência e Controle de Sessão)
 
-- [ ] **Listagem de Sessões Ativas:**
-  - **Motivo:** Dar visibilidade ao usuário de onde ele está logado.
-  - **Como:** Salvar metadados do User-Agent e IP ao gerar o Refresh Token. Criar um endpoint `GET /users/me/sessions`.
+- [x] **Listagem de Sessões Ativas:**
+  - **Status:** ✅ Implementado
+  - Metadados de User-Agent, IP e nome do dispositivo salvos no Refresh Token. Use-case `list-sessions`, controller e rotas de sessão disponíveis.
 
-- [ ] **Revogação de Sessão Específica:**
-  - **Motivo:** Permitir que o usuário encerre o acesso em um dispositivo perdido sem deslogar dos demais.
-  - **Como:** Endpoint `DELETE /users/me/sessions/:id` para revogar um Refresh Token específico.
+- [x] **Revogação de Sessão Específica:**
+  - **Status:** ✅ Implementado
+  - Use-case `revoke-session` para revogar um Refresh Token específico sem afetar as demais sessões.
 
-- [ ] **Histórico de Login (Auditoria):**
-  - **Motivo:** Segurança e auditoria.
-  - **Como:** Tabela para registrar data, IP, status (sucesso/falha) e dispositivo de cada tentativa de login.
+- [x] **Histórico de Login (Auditoria):**
+  - **Status:** ✅ Implementado
+  - Modelo `LoginHistory` no Prisma com registro de data, IP, User-Agent, dispositivo, método de login (e-mail/social) e motivo de falha. Use-case `get-login-history`.
 
-- [ ] **Gerenciamento de Vínculos Sociais:**
-  - **Motivo:** Flexibilidade de acesso.
-  - **Como:** Permitir que um usuário que criou a conta com e-mail/senha vincule também sua conta do Google posteriormente, ou remova esse vínculo (`POST /users/me/social`, `DELETE /users/me/social/:provider`).
+- [x] **Gerenciamento de Vínculos Sociais:**
+  - **Status:** ✅ Implementado
+  - Use-cases `link-social-account` e `unlink-social-account`. Validação para impedir remoção do último método de autenticação. Suporte a Google, Apple, Facebook e GitHub.
 
 ---
 
 ## 🟢 Baixa Prioridade (Escala e Enterprise)
 
-- [ ] **Campos Extras de Perfil:**
-  - Adicionar avatar/foto de perfil, telefone, data de nascimento, endereço, etc., conforme a necessidade do produto.
+- [x] **Campos Extras de Perfil:**
+  - **Status:** ✅ Implementado
+  - Avatar, telefone, data de nascimento, bio, locale, timezone e endereço completo (rua, cidade, estado, CEP, país). Entidade `UserProfile` e método `updateProfile()`.
 
 - [x] **Suporte a Organizações / Tenants (Multi-tenancy):**
-  - Preparar a estrutura para que usuários pertençam a uma ou mais empresas, com regras de isolamento de dados.
+  - **Status:** ✅ Implementado
+  - CRUD completo de organizações com slug único. Sistema de convites por e-mail com token. Papéis por organização: `OWNER`, `ADMIN`, `MEMBER`, `VIEWER`. Use-cases: criar, atualizar, convidar, aceitar convite, alterar papel e remover membro.
 
-- [ ] **Roles e Permissões Granulares (RBAC Avançado):**
-  - Evoluir do modelo simples (`USER`/`ADMIN`) para um modelo de permissões por recurso (ex: `users:read`, `posts:delete`).
+- [x] **Roles e Permissões Granulares (RBAC Avançado):**
+  - **Status:** ✅ Implementado
+  - Modelo `CustomRole` com permissões por recurso (ex: `users:read`, `posts:delete`). CRUD de roles customizados, atribuição/remoção de roles a usuários, listagem de permissões. Suporte a roles por organização e roles de sistema.
 
-- [ ] **Webhooks de Eventos de Autenticação:**
-  - Enviar eventos via Webhook quando um usuário for criado, logar, ou for desativado, para sincronizar com outros microsserviços.
+- [x] **Webhooks de Eventos de Autenticação:**
+  - **Status:** ✅ Implementado
+  - Registro de endpoints com secret para assinatura HMAC. Eventos suportados: `USER_CREATED`, `USER_UPDATED`, `USER_DELETED`, `USER_LOGIN`, `USER_LOGOUT`, `USER_PASSWORD_CHANGED`, `USER_EMAIL_VERIFIED`, `ORG_CREATED`, `ORG_MEMBER_ADDED`, `ORG_MEMBER_REMOVED`. Sistema de retry com status de entrega.
 
-- [ ] **Suporte a Fluxos OAuth Completos (PKCE / Authorization Code):**
-  - Tornar a API um verdadeiro "Identity Provider" (IdP) padrão OIDC para que aplicações de terceiros possam usar o seu sistema para login.
+- [x] **Suporte a Fluxos OAuth Completos (PKCE / Authorization Code):**
+  - **Status:** ✅ Implementado
+  - Authorization Code Flow com PKCE (S256). Endpoints de autorização, consentimento, troca de token e userinfo. Modelo de `AuthorizationCode` e `OAuthConsent`. Client Apps com grant types, scopes e autenticação configuráveis.
+
+---
+
+## 📊 Resumo de Progresso
+
+| Prioridade | Total | Concluído | Pendente |
+|---|---|---|---|
+| 🔴 Alta | 5 | 4 | 1 |
+| 🟡 Média | 4 | 4 | 0 |
+| 🟢 Baixa | 5 | 5 | 0 |
+| **Total** | **14** | **13** | **1** |
+
+> **Próximo passo:** Implementar Autenticação de 2 Fatores (MFA/2FA) — a única funcionalidade de alta prioridade ainda pendente.
