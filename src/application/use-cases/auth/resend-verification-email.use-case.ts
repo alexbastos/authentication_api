@@ -55,8 +55,8 @@ export class ResendVerificationEmailUseCase {
       );
 
       if (elapsedSeconds < COOLDOWN_SECONDS) {
-        const remaining = COOLDOWN_SECONDS - elapsedSeconds;
-        throw new EmailCooldownError(remaining);
+        // Return generic success to avoid enumeration and block spam
+        return { message: 'If your email exists and is not verified, a new link has been sent.' };
       }
     }
 

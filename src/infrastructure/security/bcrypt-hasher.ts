@@ -1,6 +1,6 @@
 // ─── Bcrypt Hasher ────────────────────────────────────────────────────────
 
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 import type { IHasher } from '../../application/ports/hasher.port.js';
 
 export class BcryptHasher implements IHasher {

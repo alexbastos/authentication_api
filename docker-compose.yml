@@ -1,34 +1,26 @@
 version: '3.8'
 
 services:
-  # ─── Authentication API ────────────────────────────────────────────────
+  # ─── Authentication API ──────────────────────────────────────────────────
   app:
     build:
       context: .
       dockerfile: docker/Dockerfile
+      args:
+        GIT_BRANCH: ${GIT_BRANCH:-unknown}
+        GIT_COMMIT: ${GIT_COMMIT:-unknown}
+        BUILD_DATE: ${BUILD_DATE:-}
     ports:
       - '3000:3000'
     environment:
-      - NODE_ENV=${NODE_ENV:-development}
-      - PORT=3000
-      - HOST=0.0.0.0
-      - DATABASE_URL=${DATABASE_URL}
+      # Sobrescreve variáveis críticas independente do .env
+      - NODE_ENV=production
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - JWT_PRIVATE_KEY_PATH=/app/keys/private.pem
       - JWT_PUBLIC_KEY_PATH=/app/keys/public.pem
-      - JWT_ISSUER=${JWT_ISSUER:-authentication-api}
-      - JWT_ACCESS_TOKEN_EXPIRY=${JWT_ACCESS_TOKEN_EXPIRY:-15m}
-      - JWT_REFRESH_TOKEN_EXPIRY_DAYS=${JWT_REFRESH_TOKEN_EXPIRY_DAYS:-7}
-      - BCRYPT_SALT_ROUNDS=${BCRYPT_SALT_ROUNDS:-12}
-      - CORS_ORIGIN=${CORS_ORIGIN}
-      - RATE_LIMIT_MAX=${RATE_LIMIT_MAX:-100}
-      - RATE_LIMIT_WINDOW_MS=${RATE_LIMIT_WINDOW_MS:-60000}
-      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
-      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
-      - EMAIL_PROVIDER=${EMAIL_PROVIDER:-ses}
-      - EMAIL_FROM_ADDRESS=${EMAIL_FROM_ADDRESS:-capcodesolucoes@gmail.com}
-      - AWS_REGION=${AWS_REGION:-us-east-1}
+    env_file:
+      - .env
     volumes:
       - ./keys:/app/keys:ro
     depends_on:
@@ -38,8 +30,9 @@ services:
         condition: service_healthy
     networks:
       - auth-network
+    restart: unless-stopped
 
-  # ─── PostgreSQL ────────────────────────────────────────────────────────
+  # ─── PostgreSQL ──────────────────────────────────────────────────────────
   postgres:
     image: postgres:15-alpine
     ports:
@@ -58,8 +51,9 @@ services:
       retries: 5
     networks:
       - auth-network
+    restart: unless-stopped
 
-  # ─── Redis ─────────────────────────────────────────────────────────────
+  # ─── Redis (Rate Limit e Blocklist) ─────────────────────────────────────
   redis:
     image: redis:7-alpine
     ports:
@@ -74,6 +68,7 @@ services:
       retries: 5
     networks:
       - auth-network
+    restart: unless-stopped
 
 volumes:
   postgres_data:

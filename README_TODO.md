@@ -6,19 +6,19 @@ Este documento lista as funcionalidades, melhorias de segurança e recursos de g
 
 ## 🔴 Alta Prioridade (Funcionalidade & Segurança Crítica)
 
-- [ ] **Verificação de E-mail (Email Verification):**
+- [x] **Verificação de E-mail (Email Verification):**
   - **Motivo:** Evitar que usuários criem contas usando e-mails de terceiros.
   - **Como:** Enviar um e-mail com um link/código de confirmação após o registro (`POST /auth/register`). Restringir acesso a certas rotas até a confirmação.
 
-- [ ] **Esqueci minha senha (Password Reset):**
+- [x] **Esqueci minha senha (Password Reset):**
   - **Motivo:** Fluxo essencial para recuperação de acesso.
   - **Como:** Endpoint para solicitar reset (envia e-mail com token) e endpoint para redefinir a senha usando o token recebido.
 
-- [ ] **Troca de Senha Autenticada:**
+- [x] **Troca de Senha Autenticada:**
   - **Motivo:** Permitir que o usuário logado altere sua própria senha.
   - **Como:** Endpoint `PUT /users/me/password` que exija a senha atual para confirmar a troca.
 
-- [ ] **Proteção contra Força Bruta (Brute Force Protection):**
+- [x] **Proteção contra Força Bruta (Brute Force Protection):**
   - **Motivo:** Impedir ataques automatizados de adivinhação de senha.
   - **Como:** Bloqueio temporário da conta ou do IP após X tentativas de login falhas. Pode usar o Redis para armazenar as tentativas.
 

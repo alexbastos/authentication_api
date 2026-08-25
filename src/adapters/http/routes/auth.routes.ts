@@ -103,7 +103,7 @@ export function registerAuthRoutes(
     schema: {
       tags: ['Auth', 'Email Verification'],
       summary: 'Resend verification email',
-      description: 'Resends the verification email to the given address. Always returns success to prevent user enumeration. Rate limited to 3 requests per 15 minutes per IP, with a 2-minute cooldown per email address.',
+      description: 'Resends the verification email to the given address. Always returns success to prevent user enumeration.\n\n**Security Protections:**\n- Rate Limited to 3 requests per 15 minutes per IP.\n- Cooldown mechanism: will silently ignore requests if the last token was generated less than 2 minutes ago.',
       body: ResendVerificationBodySchema,
       response: {
         200: MessageResponseSchema,

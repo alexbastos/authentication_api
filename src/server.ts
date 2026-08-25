@@ -34,4 +34,14 @@ async function main() {
   }
 }
 
+// ─── Catch unhandled errors to prevent silent crashes ─────────────────────
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[FATAL] Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('[FATAL] Uncaught Exception:', error);
+  process.exit(1);
+});
+
 main();

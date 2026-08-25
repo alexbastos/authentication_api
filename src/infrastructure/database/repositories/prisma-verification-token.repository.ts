@@ -25,11 +25,32 @@ export class PrismaVerificationTokenRepository implements IVerificationTokenRepo
   }
 
   async findByTokenHash(tokenHash: string, type: VerificationTokenType): Promise<VerificationToken | null> {
-    const record = await this.prisma.verificationToken.findFirst({
-      where: { tokenHash, type: type as any },
+    const raw = await this.prisma.verificationToken.findFirst({
+      where: {
+        tokenHash,
+        type: type as any,
+        usedAt: null,
+        expiresAt: { gt: new Date() },
+      },
     });
-    if (!record) return null;
-    return this.toDomain(record);
+
+    if (!raw) return null;
+    return this.toDomain(raw);
+  }
+
+  async findActiveByUserId(userId: string, type: VerificationTokenType): Promise<VerificationToken | null> {
+    const raw = await this.prisma.verificationToken.findFirst({
+      where: {
+        userId,
+        type: type as any,
+        usedAt: null,
+        expiresAt: { gt: new Date() },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!raw) return null;
+    return this.toDomain(raw);
   }
 
   async markAsUsed(id: string): Promise<void> {

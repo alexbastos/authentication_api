@@ -1,0 +1,13 @@
+{
+	"folders": [
+		{
+			"path": ".."
+		},
+		{
+			"path": "../../capta"
+		},
+		{
+			"path": "../../captagov_terraform"
+		}
+	]
+}
