@@ -35,6 +35,14 @@ export class UserController {
       role: request.body.role as Role | undefined,
       requesterId: request.user!.sub,
       requesterRole: request.user!.role,
+      // Profile fields
+      avatarUrl: request.body.avatarUrl,
+      phone: request.body.phone,
+      birthDate: request.body.birthDate ? new Date(request.body.birthDate) : request.body.birthDate as undefined | null,
+      bio: request.body.bio,
+      locale: request.body.locale,
+      timezone: request.body.timezone,
+      address: request.body.address,
     });
 
     return reply.status(200).send(result);

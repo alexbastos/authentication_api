@@ -36,8 +36,11 @@ export interface UpdateUserOutput {
   email: string;
   role: string;
   status: string;
-  updatedAt: Date;
+  emailVerified: boolean;
+  socialProviders: string[];
   profile: UserProfile;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export class UpdateUserUseCase {
@@ -136,8 +139,11 @@ export class UpdateUserUseCase {
       email: updatedUser.email,
       role: updatedUser.role,
       status: updatedUser.status,
-      updatedAt: updatedUser.updatedAt,
+      emailVerified: updatedUser.emailVerified,
+      socialProviders: updatedUser.socialAccounts?.map((sa) => sa.provider) || [],
       profile: updatedUser.profile,
+      createdAt: updatedUser.createdAt,
+      updatedAt: updatedUser.updatedAt,
     };
   }
 }
