@@ -1,6 +1,7 @@
 // ─── Use Case: Get User ───────────────────────────────────────────────────
 
 import type { IUserRepository } from '../../../domain/repositories/user.repository.js';
+import type { UserProfile } from '../../../domain/entities/user.entity.js';
 import { UserNotFoundError } from '../../../domain/errors/domain-errors.js';
 
 export interface GetUserOutput {
@@ -11,6 +12,7 @@ export interface GetUserOutput {
   status: string;
   emailVerified: boolean;
   socialProviders: string[];
+  profile: UserProfile;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -32,6 +34,7 @@ export class GetUserUseCase {
       status: user.status,
       emailVerified: user.emailVerified,
       socialProviders: user.socialAccounts.map((sa) => sa.provider),
+      profile: user.profile,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     };
