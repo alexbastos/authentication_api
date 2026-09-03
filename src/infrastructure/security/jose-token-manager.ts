@@ -43,6 +43,7 @@ export class JoseTokenManager implements ITokenManager {
     email: string;
     role: Role;
     permissions?: string[];
+    sid?: string;
     scopes?: string[];
     aud?: string;
   }): Promise<string> {
@@ -54,6 +55,7 @@ export class JoseTokenManager implements ITokenManager {
       role: payload.role,
       ...(payload.permissions ? { permissions: payload.permissions } : {}),
       ...(payload.scopes ? { scopes: payload.scopes } : {}),
+      ...(payload.sid ? { sid: payload.sid } : {}),
       jti,
     })
       .setProtectedHeader({ alg: 'RS256', kid: 'auth-key-1' })
@@ -106,6 +108,7 @@ export class JoseTokenManager implements ITokenManager {
       email: payload.email as string,
       role: payload.role as Role,
       permissions: (payload.permissions as string[]) ?? undefined,
+      sid: (payload.sid as string) ?? undefined,
       jti: payload.jti as string,
       iat: payload.iat as number,
       exp: payload.exp as number,

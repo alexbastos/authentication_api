@@ -1,12 +1,13 @@
-// ─── Use Case: Authenticate User (email/password) ────────────────────────
-
 import type { IUserRepository } from '../../../domain/repositories/user.repository.js';
 import type { IRefreshTokenRepository } from '../../../domain/repositories/refresh-token.repository.js';
 import type { ILoginHistoryRepository } from '../../../domain/repositories/login-history.repository.js';
+import type { ISessionRepository } from '../../../domain/repositories/session.repository.js';
 import type { IHasher } from '../../ports/hasher.port.js';
 import type { ITokenManager } from '../../ports/token-manager.port.js';
 import type { ICacheProvider } from '../../ports/cache.port.js';
+import type { IGeoIpService } from '../../../infrastructure/geo/geoip.service.js';
 import { RefreshToken } from '../../../domain/entities/refresh-token.entity.js';
+import { Session } from '../../../domain/entities/session.entity.js';
 import { LoginHistory } from '../../../domain/entities/login-history.entity.js';
 import { LoginStatus, LoginMethod } from '../../../domain/entities/role.entity.js';
 import {
@@ -14,6 +15,7 @@ import {
   UserInactiveError,
   EmailNotVerifiedError,
   AccountLockedError,
+  MfaRequiredError,
 } from '../../../domain/errors/domain-errors.js';
 import { parseDeviceName } from '../../../infrastructure/security/user-agent.util.js';
 import { v4 as uuidv4 } from 'uuid';
@@ -57,6 +59,8 @@ export class AuthenticateUserUseCase {
     private readonly lockoutMinutes: number = 15,
     private readonly loginHistoryRepository?: ILoginHistoryRepository,
     private readonly dispatchEventUC?: DispatchEventUseCase,
+    private readonly sessionRepository?: ISessionRepository,
+    private readonly geoIpService?: IGeoIpService,
   ) {}
 
   async execute(input: AuthenticateUserInput): Promise<AuthenticateUserOutput> {
@@ -139,17 +143,59 @@ export class AuthenticateUserUseCase {
       await this.cacheProvider.del(lockKey);
     }
 
-    // Generate tokens
+    // ─── MFA Check ────────────────────────────────────────────────────
+    if (user.mfaEnabled) {
+      // Generate temporary MFA token (short-lived, 5 minutes)
+      const mfaToken = await this.tokenManager.generateAccessToken({
+        sub: user.id,
+        email: user.email,
+        role: user.role,
+      });
+
+      const methods: string[] = [];
+      if (user.mfaMethod) methods.push(user.mfaMethod);
+      methods.push('RECOVERY');
+
+      throw new MfaRequiredError(mfaToken, methods);
+    }
+
+    // ─── Create Session & Tokens ──────────────────────────────────────
+    const family = uuidv4();
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + this.refreshTokenExpiryDays);
+
+    // Resolve geolocation from IP
+    const location = this.geoIpService?.lookup(input.ipAddress ?? '') ?? null;
+
+    // Create logical session
+    let sessionId: string | undefined;
+    if (this.sessionRepository) {
+      const session = new Session({
+        id: uuidv4(),
+        userId: user.id,
+        family,
+        deviceName,
+        userAgent: input.userAgent ?? null,
+        ipAddress: input.ipAddress ?? null,
+        location,
+        createdAt: new Date(),
+        lastSeenAt: new Date(),
+        expiresAt,
+        revokedAt: null,
+      });
+      await this.sessionRepository.create(session);
+      sessionId = session.id;
+    }
+
+    // Generate tokens with session ID
     const accessToken = await this.tokenManager.generateAccessToken({
       sub: user.id,
       email: user.email,
       role: user.role,
+      sid: sessionId,
     });
 
     const refreshTokenValue = this.tokenManager.generateRefreshToken();
-    const family = uuidv4();
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + this.refreshTokenExpiryDays);
 
     const refreshToken = new RefreshToken({
       id: uuidv4(),
@@ -231,4 +277,3 @@ export class AuthenticateUserUseCase {
     }
   }
 }
-

@@ -17,7 +17,8 @@ import { registerOrganizationRoutes } from './adapters/http/routes/organization.
 import { registerRbacRoutes } from './adapters/http/routes/rbac.routes.js';
 import { registerWebhookRoutes } from './adapters/http/routes/webhook.routes.js';
 import { registerOAuthRoutes } from './adapters/http/routes/oauth.routes.js';
-import { DomainError } from './domain/errors/domain-errors.js';
+import { registerMfaRoutes } from './adapters/http/routes/mfa.routes.js';
+import { DomainError, MfaRequiredError } from './domain/errors/domain-errors.js';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -157,6 +158,7 @@ Authorization: Bearer <access_token>
         { name: 'Organizations', description: 'Organization management (multi-tenancy)' },
         { name: 'API Gateway', description: 'Endpoints for API Gateway integration' },
         { name: 'OIDC', description: 'OpenID Connect discovery endpoints' },
+        { name: 'MFA/2FA', description: 'Multi-Factor Authentication setup, verification, and management' },
       ],
     },
   });
@@ -202,6 +204,7 @@ Authorization: Bearer <access_token>
   registerRbacRoutes(app, container.rbacController, container.authMiddleware);
   registerWebhookRoutes(app, container.webhookController, container.authMiddleware);
   registerOAuthRoutes(app, container.oauthController, container.authMiddleware);
+  registerMfaRoutes(app, container.mfaController, container.authMiddleware);
 
   // ─── Global Error Handler ───────────────────────────────────────────
   app.setErrorHandler((error: Error & { validation?: unknown; code?: string; statusCode?: number }, _request, reply) => {
@@ -247,11 +250,30 @@ Authorization: Bearer <access_token>
         CONSENT_REQUIRED: 403,
         INVALID_GRANT: 400,
         AUTHORIZATION_CODE_EXPIRED: 400,
+        // MFA errors
+        MFA_REQUIRED: 403,
+        INVALID_MFA_CODE: 401,
+        MFA_ALREADY_ENABLED: 409,
+        MFA_NOT_ENABLED: 400,
+        MFA_SETUP_INCOMPLETE: 400,
       };
 
       const statusCode = statusMap[error.code] ?? 500;
 
       logger.warn({ code: error.code, message: error.message }, 'Domain error');
+
+      // MfaRequiredError carries extra data the client needs
+      if (error instanceof MfaRequiredError) {
+        return reply.status(statusCode).send({
+          statusCode,
+          error: error.name,
+          code: error.code,
+          message: error.message,
+          mfaRequired: true,
+          mfaToken: error.mfaToken,
+          methods: error.methods,
+        });
+      }
 
       return reply.status(statusCode).send({
         statusCode,

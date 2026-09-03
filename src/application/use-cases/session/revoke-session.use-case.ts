@@ -1,7 +1,9 @@
 // ─── Use Case: Revoke Session ─────────────────────────────────────────────
+// Revokes a logical session and all its associated refresh tokens.
+// Idempotent: already-revoked or non-existent sessions return success silently.
 
+import type { ISessionRepository } from '../../../domain/repositories/session.repository.js';
 import type { IRefreshTokenRepository } from '../../../domain/repositories/refresh-token.repository.js';
-import { SessionNotFoundError } from '../../../domain/errors/domain-errors.js';
 
 export interface RevokeSessionInput {
   userId: string;
@@ -10,20 +12,23 @@ export interface RevokeSessionInput {
 
 export class RevokeSessionUseCase {
   constructor(
+    private readonly sessionRepository: ISessionRepository,
     private readonly refreshTokenRepository: IRefreshTokenRepository,
   ) {}
 
   async execute(input: RevokeSessionInput): Promise<void> {
-    const token = await this.refreshTokenRepository.findById(input.sessionId);
+    const session = await this.sessionRepository.findById(input.sessionId);
 
-    if (!token || token.userId !== input.userId) {
-      throw new SessionNotFoundError(input.sessionId);
+    // Idempotent: if session doesn't exist, belongs to another user,
+    // or is already revoked/expired, return silently
+    if (!session || session.userId !== input.userId || !session.isActive) {
+      return;
     }
 
-    if (token.isRevoked || token.isExpired) {
-      throw new SessionNotFoundError(input.sessionId);
-    }
+    // Revoke the session
+    await this.sessionRepository.revokeById(session.id);
 
-    await this.refreshTokenRepository.revokeById(input.sessionId);
+    // Revoke all refresh tokens in the same family
+    await this.refreshTokenRepository.revokeAllByFamily(session.family);
   }
 }

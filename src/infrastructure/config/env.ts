@@ -57,6 +57,12 @@ const envSchema = z.object({
   // Brute Force Protection
   LOGIN_MAX_ATTEMPTS: z.coerce.number().default(5),
   LOGIN_LOCKOUT_MINUTES: z.coerce.number().default(15),
+
+  // MFA / 2FA
+  MFA_ISSUER_NAME: z.string().default('AuthenticationAPI'),
+  MFA_CODE_TTL_MINUTES: z.coerce.number().default(10),
+  MFA_MAX_ATTEMPTS: z.coerce.number().default(5),
+  MFA_REQUIRED_FOR_ADMIN: z.coerce.boolean().default(true),
 });
 
 export type Env = z.infer<typeof envSchema>;

@@ -12,6 +12,8 @@ export enum WebhookEvent {
   ORG_CREATED = 'ORG_CREATED',
   ORG_MEMBER_ADDED = 'ORG_MEMBER_ADDED',
   ORG_MEMBER_REMOVED = 'ORG_MEMBER_REMOVED',
+  MFA_ENABLED = 'MFA_ENABLED',
+  MFA_DISABLED = 'MFA_DISABLED',
 }
 
 export enum WebhookDeliveryStatus {

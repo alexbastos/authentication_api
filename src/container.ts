@@ -7,6 +7,7 @@ import type { Env } from './infrastructure/config/env.js';
 // Infrastructure
 import { PrismaUserRepository } from './infrastructure/database/repositories/prisma-user.repository.js';
 import { PrismaRefreshTokenRepository } from './infrastructure/database/repositories/prisma-refresh-token.repository.js';
+import { PrismaSessionRepository } from './infrastructure/database/repositories/prisma-session.repository.js';
 import { PrismaClientAppRepository } from './infrastructure/database/repositories/prisma-client-app.repository.js';
 import { PrismaVerificationTokenRepository } from './infrastructure/database/repositories/prisma-verification-token.repository.js';
 import { PrismaLoginHistoryRepository } from './infrastructure/database/repositories/prisma-login-history.repository.js';
@@ -17,10 +18,13 @@ import { PrismaCustomRoleRepository } from './infrastructure/database/repositori
 import { PrismaWebhookRepository } from './infrastructure/database/repositories/prisma-webhook.repository.js';
 import { PrismaAuthorizationCodeRepository } from './infrastructure/database/repositories/prisma-authorization-code.repository.js';
 import { PrismaOAuthConsentRepository } from './infrastructure/database/repositories/prisma-oauth-consent.repository.js';
+import { PrismaMfaRepository } from './infrastructure/database/repositories/prisma-mfa.repository.js';
 import { HttpWebhookDispatcher } from './infrastructure/webhook/webhook-dispatcher.js';
 import { RedisCacheProvider } from './infrastructure/cache/redis-cache.provider.js';
 import { BcryptHasher } from './infrastructure/security/bcrypt-hasher.js';
 import { JoseTokenManager } from './infrastructure/security/jose-token-manager.js';
+import { TotpService } from './infrastructure/security/totp.service.js';
+import { GeoIpService } from './infrastructure/geo/geoip.service.js';
 import { GoogleOAuthProvider } from './infrastructure/social/google-oauth.provider.js';
 import { SocialAuthProviderRegistry } from './infrastructure/social/social-auth-registry.js';
 import { ConsoleEmailService } from './infrastructure/email/console-email.service.js';
@@ -81,6 +85,14 @@ import { AuthorizeUseCase } from './application/use-cases/oauth/authorize.use-ca
 import { GrantConsentUseCase } from './application/use-cases/oauth/grant-consent.use-case.js';
 import { TokenExchangeUseCase } from './application/use-cases/oauth/token-exchange.use-case.js';
 import { UserInfoUseCase } from './application/use-cases/oauth/userinfo.use-case.js';
+// Use Cases — MFA
+import { SetupMfaUseCase } from './application/use-cases/mfa/setup-mfa.use-case.js';
+import { VerifyMfaSetupUseCase } from './application/use-cases/mfa/verify-mfa-setup.use-case.js';
+import { ValidateMfaCodeUseCase } from './application/use-cases/mfa/validate-mfa-code.use-case.js';
+import { DisableMfaUseCase } from './application/use-cases/mfa/disable-mfa.use-case.js';
+import { GetMfaStatusUseCase } from './application/use-cases/mfa/get-mfa-status.use-case.js';
+import { RegenerateRecoveryCodesUseCase } from './application/use-cases/mfa/regenerate-recovery-codes.use-case.js';
+import { SendMfaEmailCodeUseCase } from './application/use-cases/mfa/send-mfa-email-code.use-case.js';
 
 // Controllers
 import { AuthController } from './adapters/http/controllers/auth.controller.js';
@@ -91,6 +103,7 @@ import { OrganizationController } from './adapters/http/controllers/organization
 import { RbacController } from './adapters/http/controllers/rbac.controller.js';
 import { WebhookController } from './adapters/http/controllers/webhook.controller.js';
 import { OAuthController } from './adapters/http/controllers/oauth.controller.js';
+import { MfaController } from './adapters/http/controllers/mfa.controller.js';
 
 // Middleware
 import { createAuthMiddleware } from './adapters/http/middlewares/auth.middleware.js';
@@ -112,6 +125,7 @@ export interface Container {
   rbacController: RbacController;
   webhookController: WebhookController;
   oauthController: OAuthController;
+  mfaController: MfaController;
   orgRepository: PrismaOrganizationRepository;
 
   // Middleware
@@ -143,6 +157,9 @@ export function createContainer(env: Env): Container {
     env.JWT_ACCESS_TOKEN_EXPIRY,
   );
 
+  const totpService = new TotpService();
+  const geoIpService = new GeoIpService();
+
   // Social providers
   const socialRegistry = new SocialAuthProviderRegistry();
   if (env.GOOGLE_CLIENT_ID) {
@@ -157,6 +174,7 @@ export function createContainer(env: Env): Container {
   // ─── Repositories ───────────────────────────────────────────────────
   const userRepository = new PrismaUserRepository(prisma);
   const refreshTokenRepository = new PrismaRefreshTokenRepository(prisma);
+  const sessionRepository = new PrismaSessionRepository(prisma);
   const clientAppRepository = new PrismaClientAppRepository(prisma);
   const verificationTokenRepository = new PrismaVerificationTokenRepository(prisma);
   const loginHistoryRepository = new PrismaLoginHistoryRepository(prisma);
@@ -167,6 +185,7 @@ export function createContainer(env: Env): Container {
   const webhookRepository = new PrismaWebhookRepository(prisma);
   const authCodeRepository = new PrismaAuthorizationCodeRepository(prisma);
   const oauthConsentRepository = new PrismaOAuthConsentRepository(prisma);
+  const mfaRepository = new PrismaMfaRepository(prisma);
 
   const webhookDispatcher = new HttpWebhookDispatcher(5000);
 
@@ -178,15 +197,15 @@ export function createContainer(env: Env): Container {
     userRepository, refreshTokenRepository, hasher, tokenManager,
     env.JWT_REFRESH_TOKEN_EXPIRY_DAYS,
     redis, env.LOGIN_MAX_ATTEMPTS, env.LOGIN_LOCKOUT_MINUTES,
-    loginHistoryRepository, dispatchEventUC,
+    loginHistoryRepository, dispatchEventUC, sessionRepository, geoIpService,
   );
   const authenticateSocialUC = new AuthenticateSocialUseCase(
     userRepository, refreshTokenRepository, tokenManager, socialRegistry,
-    env.JWT_REFRESH_TOKEN_EXPIRY_DAYS, loginHistoryRepository,
+    env.JWT_REFRESH_TOKEN_EXPIRY_DAYS, loginHistoryRepository, sessionRepository, geoIpService,
   );
   const validateTokenUC = new ValidateTokenUseCase(tokenManager, redis);
   const refreshTokenUC = new RefreshTokenUseCase(
-    userRepository, refreshTokenRepository, tokenManager, env.JWT_REFRESH_TOKEN_EXPIRY_DAYS,
+    userRepository, refreshTokenRepository, tokenManager, env.JWT_REFRESH_TOKEN_EXPIRY_DAYS, sessionRepository, geoIpService,
   );
   const revokeTokenUC = new RevokeTokenUseCase(refreshTokenRepository, tokenManager, redis, dispatchEventUC);
   const registerUserUC = new RegisterUserUseCase(
@@ -211,8 +230,8 @@ export function createContainer(env: Env): Container {
   const listClientAppsUC = new ListClientAppsUseCase(clientAppRepository);
 
   // Session use cases
-  const listSessionsUC = new ListSessionsUseCase(refreshTokenRepository);
-  const revokeSessionUC = new RevokeSessionUseCase(refreshTokenRepository);
+  const listSessionsUC = new ListSessionsUseCase(sessionRepository);
+  const revokeSessionUC = new RevokeSessionUseCase(sessionRepository, refreshTokenRepository);
   const getLoginHistoryUC = new GetLoginHistoryUseCase(loginHistoryRepository);
 
   // Social account management use cases
@@ -250,6 +269,29 @@ export function createContainer(env: Env): Container {
   const tokenExchangeUC = new TokenExchangeUseCase(authCodeRepository, clientAppRepository, userRepository, tokenManager, hasher);
   const userInfoUC = new UserInfoUseCase(userRepository);
 
+  // MFA use cases
+  const setupMfaUC = new SetupMfaUseCase(
+    userRepository, mfaRepository, totpService, emailService, redis,
+    env.MFA_ISSUER_NAME, env.MFA_CODE_TTL_MINUTES,
+  );
+  const validateMfaCodeUC = new ValidateMfaCodeUseCase(
+    mfaRepository, totpService, hasher, redis,
+    env.MFA_MAX_ATTEMPTS, 5,
+  );
+  const verifyMfaSetupUC = new VerifyMfaSetupUseCase(
+    userRepository, mfaRepository, totpService, hasher, redis,
+  );
+  const disableMfaUC = new DisableMfaUseCase(
+    userRepository, mfaRepository, validateMfaCodeUC, dispatchEventUC,
+  );
+  const getMfaStatusUC = new GetMfaStatusUseCase(userRepository, mfaRepository);
+  const regenerateRecoveryCodesUC = new RegenerateRecoveryCodesUseCase(
+    userRepository, mfaRepository, hasher, validateMfaCodeUC,
+  );
+  const sendMfaEmailCodeUC = new SendMfaEmailCodeUseCase(
+    userRepository, emailService, redis, env.MFA_CODE_TTL_MINUTES,
+  );
+
   // ─── Middleware ─────────────────────────────────────────────────────
   const authMiddleware = createAuthMiddleware(tokenManager, redis);
 
@@ -284,6 +326,13 @@ export function createContainer(env: Env): Container {
   const oauthController = new OAuthController(
     authorizeUC, grantConsentUC, tokenExchangeUC, userInfoUC,
   );
+  const mfaController = new MfaController(
+    setupMfaUC, verifyMfaSetupUC, validateMfaCodeUC,
+    disableMfaUC, getMfaStatusUC, regenerateRecoveryCodesUC,
+    sendMfaEmailCodeUC, tokenManager, userRepository,
+    refreshTokenRepository, env.JWT_REFRESH_TOKEN_EXPIRY_DAYS,
+    loginHistoryRepository, dispatchEventUC, sessionRepository, geoIpService,
+  );
 
   // ─── Shutdown ───────────────────────────────────────────────────────
   const shutdown = async () => {
@@ -307,9 +356,9 @@ export function createContainer(env: Env): Container {
     rbacController,
     webhookController,
     oauthController,
+    mfaController,
     orgRepository,
     authMiddleware,
     shutdown,
   };
 }
-

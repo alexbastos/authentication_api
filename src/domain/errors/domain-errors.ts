@@ -294,3 +294,39 @@ export class AuthorizationCodeExpiredError extends DomainError {
     super('Authorization code has expired', 'AUTHORIZATION_CODE_EXPIRED');
   }
 }
+
+// ─── MFA Errors ─────────────────────────────────────────────────────────
+
+export class MfaRequiredError extends DomainError {
+  constructor(
+    public readonly mfaToken: string,
+    public readonly methods: string[],
+  ) {
+    super('Two-factor authentication is required', 'MFA_REQUIRED');
+  }
+}
+
+export class InvalidMfaCodeError extends DomainError {
+  constructor() {
+    super('Invalid or expired MFA code', 'INVALID_MFA_CODE');
+  }
+}
+
+export class MfaAlreadyEnabledError extends DomainError {
+  constructor() {
+    super('Two-factor authentication is already enabled', 'MFA_ALREADY_ENABLED');
+  }
+}
+
+export class MfaNotEnabledError extends DomainError {
+  constructor() {
+    super('Two-factor authentication is not enabled', 'MFA_NOT_ENABLED');
+  }
+}
+
+export class MfaSetupIncompleteError extends DomainError {
+  constructor() {
+    super('MFA setup is not complete. Please verify your code first.', 'MFA_SETUP_INCOMPLETE');
+  }
+}
+

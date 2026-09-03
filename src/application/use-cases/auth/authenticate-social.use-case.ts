@@ -3,10 +3,13 @@
 import type { IUserRepository } from '../../../domain/repositories/user.repository.js';
 import type { IRefreshTokenRepository } from '../../../domain/repositories/refresh-token.repository.js';
 import type { ILoginHistoryRepository } from '../../../domain/repositories/login-history.repository.js';
+import type { ISessionRepository } from '../../../domain/repositories/session.repository.js';
 import type { ITokenManager } from '../../ports/token-manager.port.js';
 import type { ISocialAuthProviderRegistry } from '../../ports/social-auth.port.js';
+import type { IGeoIpService } from '../../../infrastructure/geo/geoip.service.js';
 import { User } from '../../../domain/entities/user.entity.js';
 import { RefreshToken } from '../../../domain/entities/refresh-token.entity.js';
+import { Session } from '../../../domain/entities/session.entity.js';
 import { LoginHistory } from '../../../domain/entities/login-history.entity.js';
 import { Role, UserStatus, SocialProvider, LoginStatus, LoginMethod } from '../../../domain/entities/role.entity.js';
 import { SocialAuthError } from '../../../domain/errors/domain-errors.js';
@@ -49,6 +52,8 @@ export class AuthenticateSocialUseCase {
     private readonly socialProviderRegistry: ISocialAuthProviderRegistry,
     private readonly refreshTokenExpiryDays: number = 7,
     private readonly loginHistoryRepository?: ILoginHistoryRepository,
+    private readonly sessionRepository?: ISessionRepository,
+    private readonly geoIpService?: IGeoIpService,
   ) {}
 
   async execute(input: AuthenticateSocialInput): Promise<AuthenticateSocialOutput> {
@@ -136,17 +141,42 @@ export class AuthenticateSocialUseCase {
       }
     }
 
-    // 6. Generate internal tokens
+    // 6. Create session & generate tokens
+    const family = uuidv4();
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + this.refreshTokenExpiryDays);
+
+    // Resolve geolocation from IP
+    const location = this.geoIpService?.lookup(input.ipAddress ?? '') ?? null;
+
+    // Create logical session
+    let sessionId: string | undefined;
+    if (this.sessionRepository) {
+      const session = new Session({
+        id: uuidv4(),
+        userId: user.id,
+        family,
+        deviceName,
+        userAgent: input.userAgent ?? null,
+        ipAddress: input.ipAddress ?? null,
+        location,
+        createdAt: new Date(),
+        lastSeenAt: new Date(),
+        expiresAt,
+        revokedAt: null,
+      });
+      await this.sessionRepository.create(session);
+      sessionId = session.id;
+    }
+
     const accessToken = await this.tokenManager.generateAccessToken({
       sub: user.id,
       email: user.email,
       role: user.role,
+      sid: sessionId,
     });
 
     const refreshTokenValue = this.tokenManager.generateRefreshToken();
-    const family = uuidv4();
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + this.refreshTokenExpiryDays);
 
     const refreshToken = new RefreshToken({
       id: uuidv4(),
@@ -208,4 +238,3 @@ export class AuthenticateSocialUseCase {
     }
   }
 }
-

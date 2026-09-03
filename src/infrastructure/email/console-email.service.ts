@@ -28,4 +28,16 @@ export class ConsoleEmailService implements IEmailService {
     console.log(`Expira em: 1 hora`);
     console.log(`${line}\n`);
   }
+
+  async sendMfaCode(to: string, name: string, code: string): Promise<void> {
+    const line = '═'.repeat(60);
+    console.log(`\n${line}`);
+    console.log('[EMAIL] 🔐 Código de Verificação 2FA');
+    console.log(`Para: ${to} (${name})`);
+    console.log(`Assunto: Seu código de verificação`);
+    console.log(`Código: ${code}`);
+    console.log(`[Dica] Use este código no endpoint: POST /authentication_api/api/v1/auth/mfa/verify`);
+    console.log(`Expira em: 10 minutos`);
+    console.log(`${line}\n`);
+  }
 }

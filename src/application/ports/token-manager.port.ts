@@ -8,6 +8,7 @@ export interface TokenPayload {
   email: string;
   role: Role;
   permissions?: string[];  // Granular RBAC permissions
+  sid?: string;       // Session ID (logical session)
   jti: string;        // Unique token identifier (for blocklist)
   iat: number;        // Issued at
   exp: number;        // Expiration
@@ -35,6 +36,7 @@ export interface ITokenManager {
     email: string;
     role: Role;
     permissions?: string[];
+    sid?: string;
     scopes?: string[];
     aud?: string;
   }): Promise<string>;

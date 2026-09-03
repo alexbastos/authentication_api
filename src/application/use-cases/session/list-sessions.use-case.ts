@@ -1,20 +1,23 @@
 // ─── Use Case: List Active Sessions ──────────────────────────────────────
 
-import type { IRefreshTokenRepository } from '../../../domain/repositories/refresh-token.repository.js';
+import type { ISessionRepository } from '../../../domain/repositories/session.repository.js';
+import type { GeoLocation } from '../../../domain/entities/session.entity.js';
 
 export interface SessionInfo {
   id: string;
   deviceName: string | null;
   ipAddress: string | null;
   userAgent: string | null;
+  location: GeoLocation | null;
   createdAt: Date;
+  lastSeenAt: Date;
   expiresAt: Date;
   isCurrent: boolean;
 }
 
 export interface ListSessionsInput {
   userId: string;
-  currentTokenId?: string;
+  currentSessionId?: string;
 }
 
 export interface ListSessionsOutput {
@@ -23,20 +26,22 @@ export interface ListSessionsOutput {
 
 export class ListSessionsUseCase {
   constructor(
-    private readonly refreshTokenRepository: IRefreshTokenRepository,
+    private readonly sessionRepository: ISessionRepository,
   ) {}
 
   async execute(input: ListSessionsInput): Promise<ListSessionsOutput> {
-    const activeTokens = await this.refreshTokenRepository.findActiveByUserId(input.userId);
+    const activeSessions = await this.sessionRepository.findActiveByUserId(input.userId);
 
-    const sessions: SessionInfo[] = activeTokens.map((token) => ({
-      id: token.id,
-      deviceName: token.deviceName,
-      ipAddress: token.ipAddress,
-      userAgent: token.userAgent,
-      createdAt: token.createdAt,
-      expiresAt: token.expiresAt,
-      isCurrent: input.currentTokenId ? token.id === input.currentTokenId : false,
+    const sessions: SessionInfo[] = activeSessions.map((session) => ({
+      id: session.id,
+      deviceName: session.deviceName,
+      ipAddress: session.ipAddress,
+      userAgent: session.userAgent,
+      location: session.location,
+      createdAt: session.createdAt,
+      lastSeenAt: session.lastSeenAt,
+      expiresAt: session.expiresAt,
+      isCurrent: input.currentSessionId ? session.id === input.currentSessionId : false,
     }));
 
     return { sessions };

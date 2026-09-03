@@ -10,7 +10,17 @@ export const SessionResponseSchema = Type.Object({
   deviceName: Type.Union([Type.String(), Type.Null()], { description: 'Parsed device name (e.g. "Chrome 120 - macOS")' }),
   ipAddress: Type.Union([Type.String(), Type.Null()], { description: 'IP address from the login' }),
   userAgent: Type.Union([Type.String(), Type.Null()], { description: 'Raw User-Agent header' }),
+  location: Type.Union([
+    Type.Null(),
+    Type.Object({
+      city: Type.Union([Type.String(), Type.Null()]),
+      region: Type.Union([Type.String(), Type.Null()]),
+      countryCode: Type.Union([Type.String(), Type.Null()]),
+      countryName: Type.Union([Type.String(), Type.Null()]),
+    })
+  ], { description: 'Geolocation data based on IP' }),
   createdAt: Type.String({ format: 'date-time', description: 'When the session was created' }),
+  lastSeenAt: Type.String({ format: 'date-time', description: 'When the session was last active' }),
   expiresAt: Type.String({ format: 'date-time', description: 'When the session expires' }),
   isCurrent: Type.Boolean({ description: 'True if this is the current session' }),
 });

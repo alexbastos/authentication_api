@@ -1,7 +1,7 @@
 // ─── Enterprise Business Rules ────────────────────────────────────────────
 // Pure domain entity — no external dependencies
 
-import { Role, UserStatus, SocialProvider } from './role.entity.js';
+import { Role, UserStatus, SocialProvider, MfaMethod } from './role.entity.js';
 
 /**
  * Value Object representing a social login provider link
@@ -46,6 +46,9 @@ export interface UserProps {
   socialAccounts: ProviderInfo[];
   createdAt: Date;
   updatedAt: Date;
+  // MFA
+  mfaEnabled?: boolean;
+  mfaMethod?: MfaMethod | null;
   // Profile
   avatarUrl?: string | null;
   phone?: string | null;
@@ -67,6 +70,9 @@ export class User {
   private _socialAccounts: ProviderInfo[];
   readonly createdAt: Date;
   private _updatedAt: Date;
+  // MFA
+  private _mfaEnabled: boolean;
+  private _mfaMethod: MfaMethod | null;
   // Profile
   private _avatarUrl: string | null;
   private _phone: string | null;
@@ -87,6 +93,9 @@ export class User {
     this._socialAccounts = props.socialAccounts;
     this.createdAt = props.createdAt;
     this._updatedAt = props.updatedAt;
+    // MFA
+    this._mfaEnabled = props.mfaEnabled ?? false;
+    this._mfaMethod = props.mfaMethod ?? null;
     // Profile
     this._avatarUrl = props.avatarUrl ?? null;
     this._phone = props.phone ?? null;
@@ -129,6 +138,14 @@ export class User {
 
   get updatedAt(): Date {
     return this._updatedAt;
+  }
+
+  get mfaEnabled(): boolean {
+    return this._mfaEnabled;
+  }
+
+  get mfaMethod(): MfaMethod | null {
+    return this._mfaMethod;
   }
 
   get profile(): UserProfile {
@@ -185,6 +202,18 @@ export class User {
 
   updateRole(role: Role): void {
     this._role = role;
+    this.touch();
+  }
+
+  enableMfa(method: MfaMethod): void {
+    this._mfaEnabled = true;
+    this._mfaMethod = method;
+    this.touch();
+  }
+
+  disableMfa(): void {
+    this._mfaEnabled = false;
+    this._mfaMethod = null;
     this.touch();
   }
 
@@ -263,6 +292,8 @@ export class User {
       socialAccounts: [...this._socialAccounts],
       createdAt: this.createdAt,
       updatedAt: this._updatedAt,
+      mfaEnabled: this._mfaEnabled,
+      mfaMethod: this._mfaMethod,
       avatarUrl: this._avatarUrl,
       phone: this._phone,
       birthDate: this._birthDate,
