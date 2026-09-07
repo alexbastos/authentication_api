@@ -6,6 +6,7 @@ import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
+import multipart from '@fastify/multipart';
 
 import type { Env } from './infrastructure/config/env.js';
 import type { Container } from './container.js';
@@ -93,6 +94,14 @@ export async function buildApp(env: Env, container: Container): Promise<FastifyI
     max: env.RATE_LIMIT_MAX,
     timeWindow: env.RATE_LIMIT_WINDOW_MS,
     ...rateLimitRedis,
+  });
+
+  // ─── Multipart (File Upload) ────────────────────────────────────────
+  await app.register(multipart, {
+    limits: {
+      fileSize: (env.AVATAR_MAX_SIZE_MB || 5) * 1024 * 1024,
+      files: 1,
+    },
   });
 
   // ─── Swagger / OpenAPI ──────────────────────────────────────────────
@@ -256,6 +265,10 @@ Authorization: Bearer <access_token>
         MFA_ALREADY_ENABLED: 409,
         MFA_NOT_ENABLED: 400,
         MFA_SETUP_INCOMPLETE: 400,
+        // Avatar errors
+        INVALID_FILE_TYPE: 400,
+        FILE_TOO_LARGE: 400,
+        INVALID_FILE_CONTENT: 400,
       };
 
       const statusCode = statusMap[error.code] ?? 500;

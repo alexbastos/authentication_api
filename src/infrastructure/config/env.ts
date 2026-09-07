@@ -63,6 +63,10 @@ const envSchema = z.object({
   MFA_CODE_TTL_MINUTES: z.coerce.number().default(10),
   MFA_MAX_ATTEMPTS: z.coerce.number().default(5),
   MFA_REQUIRED_FOR_ADMIN: z.coerce.boolean().default(true),
+
+  // Avatar / S3 Storage
+  S3_AVATAR_BUCKET: z.string().default('authentication-api-avatars'),
+  AVATAR_MAX_SIZE_MB: z.coerce.number().default(5),
 });
 
 export type Env = z.infer<typeof envSchema>;

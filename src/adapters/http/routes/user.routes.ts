@@ -9,6 +9,7 @@ import {
   ListUsersQuerySchema,
   PaginatedUsersResponseSchema,
 } from '../schemas/user.schema.js';
+import { UploadAvatarResponseSchema, DeleteAvatarResponseSchema } from '../schemas/avatar.schema.js';
 import { ErrorResponseSchema } from '../schemas/auth.schema.js';
 import { Role } from '../../../domain/entities/role.entity.js';
 import { createRoleMiddleware } from '../middlewares/role.middleware.js';
@@ -118,4 +119,44 @@ export function registerUserRoutes(
     },
     handler: (request: FastifyRequest, reply: FastifyReply) => controller.delete(request as any, reply),
   });
+
+  // ─── POST /authentication_api/api/v1/users/me/avatar ───────────────────────────────────
+  app.route({
+    method: 'POST',
+    url: '/authentication_api/api/v1/users/me/avatar',
+    preHandler: [authMiddleware],
+    schema: {
+      tags: ['Users'],
+      summary: 'Upload user avatar',
+      description: 'Uploads a new avatar image for the authenticated user. Accepts PNG or JPEG files up to 5 MB. Send as multipart/form-data with field name "avatar". Validates file type, size, and real content (magic bytes).',
+      consumes: ['multipart/form-data'],
+      response: {
+        200: UploadAvatarResponseSchema,
+        400: ErrorResponseSchema,
+        401: ErrorResponseSchema,
+      },
+      security: [{ bearerAuth: [] }],
+    },
+    handler: (request: FastifyRequest, reply: FastifyReply) => controller.uploadAvatar(request, reply),
+  });
+
+  // ─── DELETE /authentication_api/api/v1/users/me/avatar ─────────────────────────────────
+  app.route({
+    method: 'DELETE',
+    url: '/authentication_api/api/v1/users/me/avatar',
+    preHandler: [authMiddleware],
+    schema: {
+      tags: ['Users'],
+      summary: 'Delete user avatar',
+      description: 'Removes the current avatar image from the authenticated user profile and deletes it from storage.',
+      response: {
+        200: DeleteAvatarResponseSchema,
+        401: ErrorResponseSchema,
+        404: ErrorResponseSchema,
+      },
+      security: [{ bearerAuth: [] }],
+    },
+    handler: (request: FastifyRequest, reply: FastifyReply) => controller.deleteAvatar(request, reply),
+  });
 }
+

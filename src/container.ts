@@ -25,6 +25,7 @@ import { BcryptHasher } from './infrastructure/security/bcrypt-hasher.js';
 import { JoseTokenManager } from './infrastructure/security/jose-token-manager.js';
 import { TotpService } from './infrastructure/security/totp.service.js';
 import { GeoIpService } from './infrastructure/geo/geoip.service.js';
+import { S3StorageService } from './infrastructure/storage/s3-storage.service.js';
 import { GoogleOAuthProvider } from './infrastructure/social/google-oauth.provider.js';
 import { SocialAuthProviderRegistry } from './infrastructure/social/social-auth-registry.js';
 import { ConsoleEmailService } from './infrastructure/email/console-email.service.js';
@@ -46,6 +47,8 @@ import { GetUserUseCase } from './application/use-cases/user/get-user.use-case.j
 import { UpdateUserUseCase } from './application/use-cases/user/update-user.use-case.js';
 import { DeleteUserUseCase } from './application/use-cases/user/delete-user.use-case.js';
 import { ListUsersUseCase } from './application/use-cases/user/list-users.use-case.js';
+import { UploadAvatarUseCase } from './application/use-cases/user/upload-avatar.use-case.js';
+import { DeleteAvatarUseCase } from './application/use-cases/user/delete-avatar.use-case.js';
 // Use Cases — Client App
 import { RegisterClientAppUseCase } from './application/use-cases/client-app/register-client-app.use-case.js';
 import { ListClientAppsUseCase } from './application/use-cases/client-app/list-client-apps.use-case.js';
@@ -189,6 +192,13 @@ export function createContainer(env: Env): Container {
 
   const webhookDispatcher = new HttpWebhookDispatcher(5000);
 
+  // Storage service
+  const storageService = new S3StorageService(
+    env.S3_AVATAR_BUCKET,
+    env.AWS_REGION,
+    env.AWS_ENDPOINT_URL,
+  );
+
   // ─── Use Cases ──────────────────────────────────────────────────────
   const dispatchEventUC = new DispatchEventUseCase(webhookRepository, webhookDispatcher);
   const retryFailedDeliveriesUC = new RetryFailedDeliveriesUseCase(webhookRepository, webhookDispatcher);
@@ -226,6 +236,8 @@ export function createContainer(env: Env): Container {
   const updateUserUC = new UpdateUserUseCase(userRepository, hasher, dispatchEventUC);
   const deleteUserUC = new DeleteUserUseCase(userRepository, refreshTokenRepository, dispatchEventUC);
   const listUsersUC = new ListUsersUseCase(userRepository);
+  const uploadAvatarUC = new UploadAvatarUseCase(userRepository, storageService);
+  const deleteAvatarUC = new DeleteAvatarUseCase(userRepository, storageService);
   const registerClientAppUC = new RegisterClientAppUseCase(clientAppRepository, hasher);
   const listClientAppsUC = new ListClientAppsUseCase(clientAppRepository);
 
@@ -303,7 +315,10 @@ export function createContainer(env: Env): Container {
     requestPasswordResetUC, resetPasswordUC, changePasswordUC,
     env.APP_URL, env.VERIFICATION_TOKEN_EXPIRY_HOURS, env.PASSWORD_RESET_TOKEN_EXPIRY_HOURS,
   );
-  const userController = new UserController(getUserUC, updateUserUC, deleteUserUC, listUsersUC);
+  const userController = new UserController(
+    getUserUC, updateUserUC, deleteUserUC, listUsersUC,
+    uploadAvatarUC, deleteAvatarUC, env.AVATAR_MAX_SIZE_MB,
+  );
   const clientAppController = new ClientAppController(registerClientAppUC, listClientAppsUC);
   const sessionController = new SessionController(
     listSessionsUC, revokeSessionUC, getLoginHistoryUC,

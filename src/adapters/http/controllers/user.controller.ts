@@ -5,6 +5,8 @@ import type { GetUserUseCase } from '../../../application/use-cases/user/get-use
 import type { UpdateUserUseCase } from '../../../application/use-cases/user/update-user.use-case.js';
 import type { DeleteUserUseCase } from '../../../application/use-cases/user/delete-user.use-case.js';
 import type { ListUsersUseCase } from '../../../application/use-cases/user/list-users.use-case.js';
+import type { UploadAvatarUseCase } from '../../../application/use-cases/user/upload-avatar.use-case.js';
+import type { DeleteAvatarUseCase } from '../../../application/use-cases/user/delete-avatar.use-case.js';
 import type { UpdateUserBody, UserIdParams, ListUsersQuery } from '../schemas/user.schema.js';
 import { Role, UserStatus } from '../../../domain/entities/role.entity.js';
 
@@ -14,6 +16,9 @@ export class UserController {
     private readonly updateUserUC: UpdateUserUseCase,
     private readonly deleteUserUC: DeleteUserUseCase,
     private readonly listUsersUC: ListUsersUseCase,
+    private readonly uploadAvatarUC: UploadAvatarUseCase,
+    private readonly deleteAvatarUC: DeleteAvatarUseCase,
+    private readonly avatarMaxSizeMB: number,
   ) {}
 
   async getMe(request: FastifyRequest, reply: FastifyReply) {
@@ -65,4 +70,37 @@ export class UserController {
 
     return reply.status(200).send(result);
   }
+
+  async uploadAvatar(request: FastifyRequest, reply: FastifyReply) {
+    const file = await request.file();
+
+    if (!file) {
+      return reply.status(400).send({
+        statusCode: 400,
+        error: 'Validation Error',
+        code: 'VALIDATION_ERROR',
+        message: 'No file provided. Send a file with field name "avatar".',
+      });
+    }
+
+    const buffer = await file.toBuffer();
+
+    const result = await this.uploadAvatarUC.execute({
+      userId: request.user!.sub,
+      buffer,
+      mimeType: file.mimetype,
+      maxSizeMB: this.avatarMaxSizeMB,
+    });
+
+    return reply.status(200).send(result);
+  }
+
+  async deleteAvatar(request: FastifyRequest, reply: FastifyReply) {
+    const result = await this.deleteAvatarUC.execute({
+      userId: request.user!.sub,
+    });
+
+    return reply.status(200).send(result);
+  }
 }
+

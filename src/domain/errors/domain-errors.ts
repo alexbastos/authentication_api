@@ -330,3 +330,23 @@ export class MfaSetupIncompleteError extends DomainError {
   }
 }
 
+// ─── Avatar Errors ──────────────────────────────────────────────────────
+
+export class InvalidFileTypeError extends DomainError {
+  constructor() {
+    super('Invalid file type. Only PNG and JPEG images are allowed.', 'INVALID_FILE_TYPE');
+  }
+}
+
+export class FileTooLargeError extends DomainError {
+  constructor(maxSizeMB: number) {
+    super(`File size exceeds the maximum allowed (${maxSizeMB} MB)`, 'FILE_TOO_LARGE');
+  }
+}
+
+export class InvalidFileContentError extends DomainError {
+  constructor() {
+    super('File content does not match the declared type', 'INVALID_FILE_CONTENT');
+  }
+}
+

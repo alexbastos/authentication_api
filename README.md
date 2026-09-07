@@ -254,6 +254,8 @@ Todas as variáveis de ambiente estão documentadas no arquivo `.env.example`:
 | `GET` | `/api/v1/users/:id` | Buscar usuário por ID | ✅ Bearer |
 | `PUT` | `/api/v1/users/:id` | Atualizar usuário | ✅ Bearer |
 | `DELETE` | `/api/v1/users/:id` | Desativar usuário (soft delete) | ✅ Bearer |
+| `POST` | `/api/v1/users/me/avatar` | Upload de avatar (multipart, PNG/JPEG, até 5 MB) | ✅ Bearer |
+| `DELETE` | `/api/v1/users/me/avatar` | Remover avatar do perfil | ✅ Bearer |
 
 ### Controle de Sessão e Segurança
 
