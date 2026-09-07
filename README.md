@@ -233,6 +233,18 @@ Todas as variáveis de ambiente estão documentadas no arquivo `.env.example`:
 | `POST` | `/api/v1/auth/validate` | Validar token (API Gateway) | ❌ |
 | `GET` | `/api/v1/auth/.well-known/jwks.json` | Chaves públicas (JWKS) | ❌ |
 
+### Autenticação 2FA (MFA)
+
+| Método | Endpoint | Descrição | Auth |
+|:---|:---|:---|:---|
+| `POST` | `/api/v1/auth/mfa/setup` | Iniciar configuração do MFA | ✅ Bearer |
+| `POST` | `/api/v1/auth/mfa/verify-setup` | Confirmar e ativar MFA | ✅ Bearer |
+| `POST` | `/api/v1/auth/mfa/verify` | Validar código MFA (Passo 2 do Login) | ❌ (Usa `mfaToken`) |
+| `POST` | `/api/v1/auth/mfa/disable` | Desativar MFA | ✅ Bearer |
+| `GET`  | `/api/v1/auth/mfa/status` | Ver status atual do MFA | ✅ Bearer |
+| `POST` | `/api/v1/auth/mfa/recovery-codes/regenerate` | Gerar novos códigos de recuperação | ✅ Bearer |
+| `POST` | `/api/v1/auth/mfa/email-code` | Enviar código MFA por E-mail | ❌ (Usa `mfaToken`) |
+
 ### Users (CRUD)
 
 | Método | Endpoint | Descrição | Auth |
