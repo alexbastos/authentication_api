@@ -44,8 +44,8 @@ export class PrismaCustomRoleRepository implements ICustomRoleRepository {
   }
 
   async findByNameAndOrg(name: string, organizationId: string | null): Promise<CustomRole | null> {
-    const record = await this.prisma.customRole.findUnique({
-      where: { name_organizationId: { name, organizationId: organizationId ?? '' } },
+    const record = await this.prisma.customRole.findFirst({
+      where: { name, organizationId },
       include: ROLE_INCLUDE,
     });
     if (!record) return null;
@@ -108,12 +108,14 @@ export class PrismaCustomRoleRepository implements ICustomRoleRepository {
   }
 
   async assignToUser(userId: string, roleId: string, organizationId?: string | null): Promise<void> {
-    await this.prisma.userRole.create({
-      data: {
+    await this.prisma.userRole.upsert({
+      where: { userId_roleId: { userId, roleId } },
+      create: {
         userId,
         roleId,
         organizationId: organizationId ?? null,
       },
+      update: { organizationId: organizationId ?? null },
     });
   }
 

@@ -27,10 +27,18 @@ Estes são os endpoints públicos (ou parcialmente públicos) responsáveis pelo
 | Método | Endpoint | Descrição |
 |---|---|---|
 | **POST** | `/auth/register` | Cria uma conta tradicional usando email e senha (com validação estrita de complexidade de senha). |
-| **POST** | `/auth/login` | Realiza o login tradicional com email e senha, retornando o Access Token (15 min) e o Refresh Token (7 dias). |
+| **POST** | `/auth/login` | Valida email e senha e retorna uma união discriminada: `type: "authenticated"` com os tokens finais, ou `type: "mfa_required"` com o desafio MFA. Ambos os casos de credenciais corretas usam `200 OK`. |
 | **POST** | `/auth/login/social` | Recebe o token do Google (ou Apple/Facebook), valida a integridade diretamente com o provedor, cadastra o usuário no banco se for o primeiro acesso, e retorna os tokens internos. |
 | **POST** | `/auth/refresh` | Troca um Refresh Token válido por um novo par de tokens. Implementa **Token Rotation** (o token antigo é invalidado no banco imediatamente por segurança). Preserva os metadados do dispositivo da sessão original. |
 | **POST** | `/auth/logout` | Encerra a sessão. Revoga o Refresh Token no banco de dados e adiciona o Access Token atual a uma **Blocklist no Redis**, impedindo seu uso imediato, mesmo antes da expiração. |
+
+### Fluxo MFA/2FA
+
+Quando o login retorna `type: "mfa_required"`, a resposta contém um `mfaToken` de uso único, válido por 5 minutos, e `availableMethods`. O cliente deve apresentar somente esses métodos e enviar `mfaToken`, `code` e `method` para `POST /auth/mfa/verify`. Os tokens de sessão só são emitidos depois dessa verificação.
+
+Contas configuradas com TOTP podem usar TOTP ou receber um código por e-mail. Contas configuradas com EMAIL usam e-mail. `RECOVERY` aparece apenas quando ainda há códigos disponíveis. Após 5 códigos incorretos, o desafio é invalidado. O `mfaToken` não é aceito como Bearer token nem em endpoints comuns da API.
+
+O setup TOTP retorna sempre `secret` e `qrCodeUrl` como Data URL PNG; o setup EMAIL envia o código automaticamente. Um novo setup invalida o anterior. A ativação gera exatamente 10 recovery codes `XXXXXXXX-XXXXXXXX`, exibidos uma única vez. Usuários EMAIL podem pedir um código com Bearer em `/auth/mfa/email-code` e usá-lo para desativar o MFA ou regenerar os recovery codes.
 
 ---
 
@@ -57,7 +65,9 @@ Estes endpoints permitem que o próprio usuário gerencie ativamente a seguranç
 | **Sessões Ativas** | **GET** | `/users/me/sessions` | Lista todos os dispositivos onde o usuário está atualmente logado. Inclui o IP, nome do navegador/OS e data de acesso. Identifica qual é a sessão atual (`isCurrent`). |
 | **Revogar Sessão** | **DELETE** | `/users/me/sessions/:id` | Encerra remotamente uma sessão específica (ex: deslogar de um celular perdido) sem afetar os outros dispositivos do usuário. |
 | **Auditoria de Login** | **GET** | `/users/me/login-history` | Retorna o histórico de todas as tentativas de login (com sucesso ou falha). Útil para o usuário identificar acessos suspeitos em sua conta. |
+| **Enviar Avatar** | **POST** | `/users/me/avatar` | Recebe PNG ou JPEG de até 5 MB no campo multipart obrigatório `avatar`. Retorna uma URL pré-assinada válida por 7 dias; um novo `GET /users/me` renova a URL. |
+| **Remover Avatar** | **DELETE** | `/users/me/avatar` | Remove o avatar de forma idempotente. Retorna sucesso mesmo quando o usuário já não possui avatar. |
 | **Vincular Conta Social** | **POST** | `/users/me/social` | Permite que um usuário que criou a conta com e-mail/senha vincule uma conta social (ex: Google) posteriormente para facilitar os próximos acessos. |
 | **Desvincular Conta** | **DELETE** | `/users/me/social/:provider` | Remove o vínculo com uma rede social. O sistema bloqueia a remoção se isso for deixar o usuário sem nenhuma forma de login (ex: sem senha e sem outra rede social vinculada). |
 
-> **Nota:** Todos esses endpoints e seus respectivos modelos de requisição/resposta (schemas) podem ser testados de forma interativa através do painel do Swagger, disponível na rota local ou de produção: `/docs/authentication_api/`.
+> **Nota:** Todos esses endpoints e seus respectivos modelos de requisição/resposta (schemas) podem ser testados de forma interativa através do painel do Swagger em `/docs/authentication_api/`. Em produção, o painel fica desabilitado por padrão e depende de `ENABLE_SWAGGER=true`.

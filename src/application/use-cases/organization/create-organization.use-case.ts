@@ -3,7 +3,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import type { IOrganizationRepository } from '../../../domain/repositories/organization.repository.js';
 import { Organization } from '../../../domain/entities/organization.entity.js';
-import { OrgRole } from '../../../domain/entities/role.entity.js';
 import { OrganizationSlugTakenError } from '../../../domain/errors/domain-errors.js';
 
 export interface CreateOrganizationInput {
@@ -35,10 +34,7 @@ export class CreateOrganizationUseCase {
       updatedAt: new Date(),
     });
 
-    const created = await this.orgRepository.create(org);
-
-    // Add creator as OWNER
-    await this.orgRepository.addMember(created.id, input.creatorUserId, OrgRole.OWNER);
+    const created = await this.orgRepository.createWithOwner(org, input.creatorUserId);
 
     return created.toJSON();
   }

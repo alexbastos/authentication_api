@@ -3,14 +3,20 @@
 import type { IUserRepository } from '../../../domain/repositories/user.repository.js';
 import type { IRefreshTokenRepository } from '../../../domain/repositories/refresh-token.repository.js';
 import type { ILoginHistoryRepository } from '../../../domain/repositories/login-history.repository.js';
+import type { ISessionRepository } from '../../../domain/repositories/session.repository.js';
 import type { ITokenManager } from '../../ports/token-manager.port.js';
 import type { ISocialAuthProviderRegistry } from '../../ports/social-auth.port.js';
+import type { ISecureTokenService } from '../../ports/secure-token.port.js';
+import type { IMfaRepository } from '../../../domain/repositories/mfa.repository.js';
+import type { MfaChallengeMethod, MfaChallengeService } from '../../services/mfa-challenge.service.js';
+import type { IGeoIpService } from '../../ports/geo-ip.port.js';
 import { User } from '../../../domain/entities/user.entity.js';
 import { RefreshToken } from '../../../domain/entities/refresh-token.entity.js';
+import { Session } from '../../../domain/entities/session.entity.js';
 import { LoginHistory } from '../../../domain/entities/login-history.entity.js';
 import { Role, UserStatus, SocialProvider, LoginStatus, LoginMethod } from '../../../domain/entities/role.entity.js';
-import { SocialAuthError } from '../../../domain/errors/domain-errors.js';
-import { parseDeviceName } from '../../../infrastructure/security/user-agent.util.js';
+import { SocialAuthError, UserInactiveError } from '../../../domain/errors/domain-errors.js';
+import { parseDeviceName } from '../../services/device-name.service.js';
 import { v4 as uuidv4 } from 'uuid';
 
 const SOCIAL_LOGIN_METHOD_MAP: Record<SocialProvider, LoginMethod> = {
@@ -29,7 +35,8 @@ export interface AuthenticateSocialInput {
   ipAddress?: string;
 }
 
-export interface AuthenticateSocialOutput {
+export interface AuthenticatedSocialOutput {
+  type: 'authenticated';
   accessToken: string;
   refreshToken: string;
   user: {
@@ -37,9 +44,18 @@ export interface AuthenticateSocialOutput {
     name: string;
     email: string;
     role: string;
+    emailVerified: boolean;
   };
   isNewUser: boolean;
 }
+
+export interface MfaRequiredSocialOutput {
+  type: 'mfa_required';
+  mfaToken: string;
+  availableMethods: MfaChallengeMethod[];
+}
+
+export type AuthenticateSocialOutput = AuthenticatedSocialOutput | MfaRequiredSocialOutput;
 
 export class AuthenticateSocialUseCase {
   constructor(
@@ -49,6 +65,11 @@ export class AuthenticateSocialUseCase {
     private readonly socialProviderRegistry: ISocialAuthProviderRegistry,
     private readonly refreshTokenExpiryDays: number = 7,
     private readonly loginHistoryRepository?: ILoginHistoryRepository,
+    private readonly sessionRepository?: ISessionRepository,
+    private readonly geoIpService?: IGeoIpService,
+    private readonly secureTokenService?: ISecureTokenService,
+    private readonly mfaRepository?: IMfaRepository,
+    private readonly mfaChallengeService?: MfaChallengeService,
   ) {}
 
   async execute(input: AuthenticateSocialInput): Promise<AuthenticateSocialOutput> {
@@ -136,21 +157,65 @@ export class AuthenticateSocialUseCase {
       }
     }
 
-    // 6. Generate internal tokens
-    const accessToken = await this.tokenManager.generateAccessToken({
-      sub: user.id,
-      email: user.email,
-      role: user.role,
-    });
+    if (!user.isActive) throw new UserInactiveError();
 
-    const refreshTokenValue = this.tokenManager.generateRefreshToken();
+    if (user.mfaEnabled) {
+      if (!this.mfaRepository || !this.mfaChallengeService || !user.mfaMethod) {
+        throw new Error('MFA challenge services are not configured');
+      }
+      const availableMethods: MfaChallengeMethod[] = user.mfaMethod === 'TOTP'
+        ? ['TOTP', 'EMAIL']
+        : ['EMAIL'];
+      if (await this.mfaRepository.countUnusedRecoveryCodes(user.id) > 0) {
+        availableMethods.push('RECOVERY');
+      }
+      return {
+        type: 'mfa_required',
+        mfaToken: await this.mfaChallengeService.create(user.id, availableMethods),
+        availableMethods,
+      };
+    }
+
+    // 6. Create session & generate tokens
     const family = uuidv4();
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + this.refreshTokenExpiryDays);
 
+    // Resolve geolocation from IP
+    const location = this.geoIpService?.lookup(input.ipAddress ?? '') ?? null;
+
+    // Create logical session
+    let sessionId: string | undefined;
+    if (this.sessionRepository) {
+      const session = new Session({
+        id: uuidv4(),
+        userId: user.id,
+        family,
+        deviceName,
+        userAgent: input.userAgent ?? null,
+        ipAddress: input.ipAddress ?? null,
+        location,
+        createdAt: new Date(),
+        lastSeenAt: new Date(),
+        expiresAt,
+        revokedAt: null,
+      });
+      await this.sessionRepository.create(session);
+      sessionId = session.id;
+    }
+
+    const accessToken = await this.tokenManager.generateAccessToken({
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+      sid: sessionId,
+    });
+
+    const refreshTokenValue = this.tokenManager.generateRefreshToken();
+
     const refreshToken = new RefreshToken({
       id: uuidv4(),
-      token: refreshTokenValue,
+      token: this.secureTokenService?.digest(refreshTokenValue) ?? refreshTokenValue,
       userId: user.id,
       family,
       userAgent: input.userAgent ?? null,
@@ -176,6 +241,7 @@ export class AuthenticateSocialUseCase {
     });
 
     return {
+      type: 'authenticated',
       accessToken,
       refreshToken: refreshTokenValue,
       user: {
@@ -183,6 +249,7 @@ export class AuthenticateSocialUseCase {
         name: user.name,
         email: user.email,
         role: user.role,
+        emailVerified: user.emailVerified,
       },
       isNewUser,
     };
@@ -208,4 +275,3 @@ export class AuthenticateSocialUseCase {
     }
   }
 }
-

@@ -2,11 +2,13 @@
 
 import type { IUserRepository } from '../../../domain/repositories/user.repository.js';
 import type { IHasher } from '../../ports/hasher.port.js';
+import type { IAccountSecurityRepository } from '../../ports/account-security.port.js';
 import {
   UserNotFoundError,
   InvalidCredentialsError,
   WeakPasswordError,
 } from '../../../domain/errors/domain-errors.js';
+import { assertStrongPassword } from '../../services/password-policy.service.js';
 import { WebhookEvent } from '../../../domain/entities/webhook.entity.js';
 import type { DispatchEventUseCase } from '../webhook/dispatch-event.use-case.js';
 
@@ -24,6 +26,7 @@ export class ChangePasswordUseCase {
   constructor(
     private readonly userRepository: IUserRepository,
     private readonly hasher: IHasher,
+    private readonly accountSecurityRepository: IAccountSecurityRepository,
     private readonly dispatchEventUC?: DispatchEventUseCase,
   ) {}
 
@@ -46,7 +49,7 @@ export class ChangePasswordUseCase {
     }
 
     // Validate new password complexity
-    this.validatePasswordComplexity(input.newPassword);
+    assertStrongPassword(input.newPassword);
 
     // Prevent reusing the same password
     const isSamePassword = await this.hasher.compare(input.newPassword, user.passwordHash!);
@@ -55,8 +58,7 @@ export class ChangePasswordUseCase {
     }
 
     const newPasswordHash = await this.hasher.hash(input.newPassword);
-    user.updatePassword(newPasswordHash);
-    await this.userRepository.update(user);
+    await this.accountSecurityRepository.changePasswordAndRevokeSessions(user.id, newPasswordHash);
 
     if (this.dispatchEventUC) {
       this.dispatchEventUC.execute({
@@ -65,19 +67,10 @@ export class ChangePasswordUseCase {
           userId: user.id,
           timestamp: new Date().toISOString(),
         },
-      }).catch(console.error);
+      }).catch(() => undefined);
     }
 
     return { message: 'Password changed successfully.' };
   }
 
-  private validatePasswordComplexity(password: string): void {
-    const errors: string[] = [];
-    if (password.length < 8) errors.push('at least 8 characters');
-    if (!/[A-Z]/.test(password)) errors.push('at least one uppercase letter');
-    if (!/[a-z]/.test(password)) errors.push('at least one lowercase letter');
-    if (!/[0-9]/.test(password)) errors.push('at least one digit');
-    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) errors.push('at least one special character');
-    if (errors.length > 0) throw new WeakPasswordError(errors.join(', '));
-  }
 }

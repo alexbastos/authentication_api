@@ -15,13 +15,17 @@ export class ClientAppController {
     const result = await this.registerClientAppUC.execute({
       name: request.body.name,
       redirectUrls: request.body.redirectUrls,
+      grantTypes: request.body.grantTypes,
+      scopes: request.body.scopes,
+      tokenEndpointAuth: request.body.tokenEndpointAuth,
+      requesterRole: request.user!.role,
     });
 
     return reply.status(201).send(result);
   }
 
-  async list(_request: FastifyRequest, reply: FastifyReply) {
-    const result = await this.listClientAppsUC.execute();
+  async list(request: FastifyRequest, reply: FastifyReply) {
+    const result = await this.listClientAppsUC.execute(request.user!.role);
     return reply.status(200).send(result);
   }
 }

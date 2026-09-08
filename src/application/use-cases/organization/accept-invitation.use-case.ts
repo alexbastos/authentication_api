@@ -3,10 +3,13 @@
 import { createHash } from 'node:crypto';
 import type { IOrganizationRepository } from '../../../domain/repositories/organization.repository.js';
 import type { IOrgInvitationRepository } from '../../../domain/repositories/org-invitation.repository.js';
+import type { IUserRepository } from '../../../domain/repositories/user.repository.js';
 import {
   InvitationNotFoundError,
   InvitationExpiredError,
   InvitationAlreadyAcceptedError,
+  InvitationEmailMismatchError,
+  UserNotFoundError,
 } from '../../../domain/errors/domain-errors.js';
 
 export interface AcceptInvitationInput {
@@ -18,6 +21,7 @@ export class AcceptInvitationUseCase {
   constructor(
     private readonly orgRepository: IOrganizationRepository,
     private readonly invitationRepository: IOrgInvitationRepository,
+    private readonly userRepository: IUserRepository,
   ) {}
 
   async execute(input: AcceptInvitationInput) {
@@ -36,15 +40,22 @@ export class AcceptInvitationUseCase {
       throw new InvitationExpiredError();
     }
 
-    // Create membership
-    const member = await this.orgRepository.addMember(
-      invitation.organizationId,
-      input.userId,
-      invitation.role,
-    );
+    const user = await this.userRepository.findById(input.userId);
+    if (!user) throw new UserNotFoundError(input.userId);
+    if (user.email.toLowerCase().trim() !== invitation.email.toLowerCase().trim()) {
+      throw new InvitationEmailMismatchError();
+    }
 
-    // Mark invitation as accepted
-    await this.invitationRepository.markAccepted(invitation.id);
+    const accepted = await this.invitationRepository.acceptAndAddMember({
+      invitationId: invitation.id,
+      organizationId: invitation.organizationId,
+      userId: input.userId,
+      role: invitation.role,
+    });
+    if (!accepted) throw new InvitationAlreadyAcceptedError();
+
+    const member = await this.orgRepository.findMember(invitation.organizationId, input.userId);
+    if (!member) throw new InvitationNotFoundError();
 
     return {
       organizationId: invitation.organizationId,

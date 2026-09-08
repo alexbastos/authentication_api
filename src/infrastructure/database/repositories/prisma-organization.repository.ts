@@ -23,6 +23,27 @@ export class PrismaOrganizationRepository implements IOrganizationRepository {
     return this.toDomain(record);
   }
 
+  async createWithOwner(org: Organization, ownerUserId: string): Promise<Organization> {
+    const data = org.toJSON();
+    const record = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.organization.create({
+        data: {
+          id: data.id,
+          name: data.name,
+          slug: data.slug,
+          description: data.description,
+          logoUrl: data.logoUrl,
+          isActive: data.isActive,
+        },
+      });
+      await tx.organizationMember.create({
+        data: { organizationId: created.id, userId: ownerUserId, role: OrgRole.OWNER },
+      });
+      return created;
+    });
+    return this.toDomain(record);
+  }
+
   async findById(id: string): Promise<Organization | null> {
     const record = await this.prisma.organization.findUnique({ where: { id } });
     return record ? this.toDomain(record) : null;

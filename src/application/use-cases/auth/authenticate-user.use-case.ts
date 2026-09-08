@@ -1,12 +1,15 @@
-// ─── Use Case: Authenticate User (email/password) ────────────────────────
-
 import type { IUserRepository } from '../../../domain/repositories/user.repository.js';
 import type { IRefreshTokenRepository } from '../../../domain/repositories/refresh-token.repository.js';
 import type { ILoginHistoryRepository } from '../../../domain/repositories/login-history.repository.js';
+import type { ISessionRepository } from '../../../domain/repositories/session.repository.js';
+import type { IMfaRepository } from '../../../domain/repositories/mfa.repository.js';
 import type { IHasher } from '../../ports/hasher.port.js';
 import type { ITokenManager } from '../../ports/token-manager.port.js';
 import type { ICacheProvider } from '../../ports/cache.port.js';
+import type { ISecureTokenService } from '../../ports/secure-token.port.js';
+import type { IGeoIpService } from '../../ports/geo-ip.port.js';
 import { RefreshToken } from '../../../domain/entities/refresh-token.entity.js';
+import { Session } from '../../../domain/entities/session.entity.js';
 import { LoginHistory } from '../../../domain/entities/login-history.entity.js';
 import { LoginStatus, LoginMethod } from '../../../domain/entities/role.entity.js';
 import {
@@ -15,12 +18,17 @@ import {
   EmailNotVerifiedError,
   AccountLockedError,
 } from '../../../domain/errors/domain-errors.js';
-import { parseDeviceName } from '../../../infrastructure/security/user-agent.util.js';
+import { parseDeviceName } from '../../services/device-name.service.js';
 import { v4 as uuidv4 } from 'uuid';
 import { WebhookEvent } from '../../../domain/entities/webhook.entity.js';
 import type { DispatchEventUseCase } from '../webhook/dispatch-event.use-case.js';
+import type {
+  MfaChallengeMethod,
+  MfaChallengeService,
+} from '../../services/mfa-challenge.service.js';
 
 const BRUTE_FORCE_PREFIX = 'login_attempts:';
+const LEGACY_DUMMY_PASSWORD_HASH = '$2b$12$XaBA0DfgSm2MNwOaX3dGWOsj2W83MskeGc5E.ZuS17v72geFW9uoy';
 
 export interface AuthenticateUserInput {
   email: string;
@@ -33,7 +41,8 @@ export interface AuthenticateUserInput {
   ipAddress?: string;
 }
 
-export interface AuthenticateUserOutput {
+export interface AuthenticatedLoginOutput {
+  type: 'authenticated';
   accessToken: string;
   refreshToken: string;
   user: {
@@ -44,6 +53,14 @@ export interface AuthenticateUserOutput {
     emailVerified: boolean;
   };
 }
+
+export interface MfaRequiredLoginOutput {
+  type: 'mfa_required';
+  mfaToken: string;
+  availableMethods: MfaChallengeMethod[];
+}
+
+export type AuthenticateUserOutput = AuthenticatedLoginOutput | MfaRequiredLoginOutput;
 
 export class AuthenticateUserUseCase {
   constructor(
@@ -57,25 +74,37 @@ export class AuthenticateUserUseCase {
     private readonly lockoutMinutes: number = 15,
     private readonly loginHistoryRepository?: ILoginHistoryRepository,
     private readonly dispatchEventUC?: DispatchEventUseCase,
+    private readonly sessionRepository?: ISessionRepository,
+    private readonly geoIpService?: IGeoIpService,
+    private readonly mfaRepository?: IMfaRepository,
+    private readonly mfaChallengeService?: MfaChallengeService,
+    private readonly secureTokenService?: ISecureTokenService,
   ) {}
 
   async execute(input: AuthenticateUserInput): Promise<AuthenticateUserOutput> {
-    const lockKey = `${BRUTE_FORCE_PREFIX}${input.identifier ?? input.email}`;
+    const normalizedEmail = input.email.toLowerCase().trim();
+    const emailIdentifier = this.secureTokenService?.digest(normalizedEmail) ?? normalizedEmail;
+    const lockKeys = [
+      `${BRUTE_FORCE_PREFIX}account:${emailIdentifier}`,
+      `${BRUTE_FORCE_PREFIX}network:${input.identifier ?? input.ipAddress ?? 'unknown'}`,
+    ];
     const lockoutTtl = this.lockoutMinutes * 60;
     const deviceName = parseDeviceName(input.userAgent);
 
     // Check if account/IP is locked
     if (this.cacheProvider) {
-      const attempts = await this.cacheProvider.get(lockKey);
-      if (attempts && parseInt(attempts, 10) >= this.maxLoginAttempts) {
+      const attempts = await Promise.all(lockKeys.map((key) => this.cacheProvider!.get(key)));
+      if (attempts.some((value) => value && parseInt(value, 10) >= this.maxLoginAttempts)) {
         throw new AccountLockedError(this.lockoutMinutes);
       }
     }
 
-    const user = await this.userRepository.findByEmail(input.email);
+    const user = await this.userRepository.findByEmail(normalizedEmail);
 
     if (!user || !user.hasPassword) {
-      await this.recordFailedAttempt(lockKey, lockoutTtl);
+      if (this.hasher.dummyCompare) await this.hasher.dummyCompare(input.password);
+      else await this.hasher.compare(input.password, LEGACY_DUMMY_PASSWORD_HASH);
+      await this.recordFailedAttempt(lockKeys, lockoutTtl);
       await this.recordLoginHistory({
         userId: user?.id ?? null,
         email: input.email,
@@ -89,23 +118,9 @@ export class AuthenticateUserUseCase {
       throw new InvalidCredentialsError();
     }
 
-    if (!user.isActive) {
-      await this.recordLoginHistory({
-        userId: user.id,
-        email: input.email,
-        status: LoginStatus.FAILURE,
-        method: LoginMethod.EMAIL_PASSWORD,
-        ipAddress: input.ipAddress ?? null,
-        userAgent: input.userAgent ?? null,
-        deviceName,
-        failReason: 'User inactive',
-      });
-      throw new UserInactiveError();
-    }
-
     const isPasswordValid = await this.hasher.compare(input.password, user.passwordHash!);
     if (!isPasswordValid) {
-      await this.recordFailedAttempt(lockKey, lockoutTtl);
+      await this.recordFailedAttempt(lockKeys, lockoutTtl);
       await this.recordLoginHistory({
         userId: user.id,
         email: input.email,
@@ -117,6 +132,25 @@ export class AuthenticateUserUseCase {
         failReason: 'Invalid password',
       });
       throw new InvalidCredentialsError();
+    }
+
+    if (this.hasher.needsRehash?.(user.passwordHash!)) {
+      user.updatePassword(await this.hasher.hash(input.password));
+      await this.userRepository.update(user);
+    }
+
+    if (!user.isActive) {
+      await this.recordLoginHistory({
+        userId: user.id,
+        email: normalizedEmail,
+        status: LoginStatus.FAILURE,
+        method: LoginMethod.EMAIL_PASSWORD,
+        ipAddress: input.ipAddress ?? null,
+        userAgent: input.userAgent ?? null,
+        deviceName,
+        failReason: 'User inactive',
+      });
+      throw new UserInactiveError();
     }
 
     // Require email verification before granting access
@@ -136,24 +170,71 @@ export class AuthenticateUserUseCase {
 
     // Success: clear failed attempts counter
     if (this.cacheProvider) {
-      await this.cacheProvider.del(lockKey);
+      await Promise.all(lockKeys.map((key) => this.cacheProvider!.del(key)));
     }
 
-    // Generate tokens
-    const accessToken = await this.tokenManager.generateAccessToken({
-      sub: user.id,
-      email: user.email,
-      role: user.role,
-    });
+    // ─── MFA Check ────────────────────────────────────────────────────
+    if (user.mfaEnabled) {
+      if (!this.mfaRepository || !this.mfaChallengeService || !user.mfaMethod) {
+        throw new Error('MFA challenge services are not configured');
+      }
 
-    const refreshTokenValue = this.tokenManager.generateRefreshToken();
+      const availableMethods: MfaChallengeMethod[] = user.mfaMethod === 'TOTP'
+        ? ['TOTP', 'EMAIL']
+        : ['EMAIL'];
+      const recoveryCodesRemaining = await this.mfaRepository.countUnusedRecoveryCodes(user.id);
+      if (recoveryCodesRemaining > 0) availableMethods.push('RECOVERY');
+
+      const mfaToken = await this.mfaChallengeService.create(user.id, availableMethods);
+
+      return {
+        type: 'mfa_required',
+        mfaToken,
+        availableMethods,
+      };
+    }
+
+    // ─── Create Session & Tokens ──────────────────────────────────────
     const family = uuidv4();
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + this.refreshTokenExpiryDays);
 
+    // Resolve geolocation from IP
+    const location = this.geoIpService?.lookup(input.ipAddress ?? '') ?? null;
+
+    // Create logical session
+    let sessionId: string | undefined;
+    if (this.sessionRepository) {
+      const session = new Session({
+        id: uuidv4(),
+        userId: user.id,
+        family,
+        deviceName,
+        userAgent: input.userAgent ?? null,
+        ipAddress: input.ipAddress ?? null,
+        location,
+        createdAt: new Date(),
+        lastSeenAt: new Date(),
+        expiresAt,
+        revokedAt: null,
+      });
+      await this.sessionRepository.create(session);
+      sessionId = session.id;
+    }
+
+    // Generate tokens with session ID
+    const accessToken = await this.tokenManager.generateAccessToken({
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+      sid: sessionId,
+    });
+
+    const refreshTokenValue = this.tokenManager.generateRefreshToken();
+
     const refreshToken = new RefreshToken({
       id: uuidv4(),
-      token: refreshTokenValue,
+      token: this.secureTokenService?.digest(refreshTokenValue) ?? refreshTokenValue,
       userId: user.id,
       family,
       userAgent: input.userAgent ?? null,
@@ -176,7 +257,7 @@ export class AuthenticateUserUseCase {
       userAgent: input.userAgent ?? null,
       deviceName,
       failReason: null,
-    }).catch(console.error);
+    }).catch(() => undefined);
 
     if (this.dispatchEventUC) {
       this.dispatchEventUC.execute({
@@ -189,10 +270,11 @@ export class AuthenticateUserUseCase {
           deviceName,
           timestamp: new Date().toISOString(),
         },
-      }).catch(console.error); // Fire-and-forget logging handled inside if needed
+      }).catch(() => undefined);
     }
 
     return {
+      type: 'authenticated',
       accessToken,
       refreshToken: refreshTokenValue,
       user: {
@@ -205,9 +287,9 @@ export class AuthenticateUserUseCase {
     };
   }
 
-  private async recordFailedAttempt(lockKey: string, ttlSeconds: number): Promise<void> {
+  private async recordFailedAttempt(lockKeys: string[], ttlSeconds: number): Promise<void> {
     if (this.cacheProvider) {
-      await this.cacheProvider.increment(lockKey, ttlSeconds);
+      await Promise.all(lockKeys.map((key) => this.cacheProvider!.increment(key, ttlSeconds)));
     }
   }
 
@@ -231,4 +313,3 @@ export class AuthenticateUserUseCase {
     }
   }
 }
-

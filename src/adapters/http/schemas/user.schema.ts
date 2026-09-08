@@ -15,7 +15,9 @@ export const UserAddressSchema = Type.Object({
 // ─── Profile Sub-object ─────────────────────────────────────────────────
 
 export const UserProfileSchema = Type.Object({
-  avatarUrl: Type.Union([Type.String(), Type.Null()], { description: 'Avatar/profile picture URL' }),
+  avatarUrl: Type.Union([Type.String({ format: 'uri' }), Type.Null()], {
+    description: 'For uploaded avatars, a fresh pre-signed URL valid for 7 days. Fetch the user again to renew it. External provider URLs are returned as-is.',
+  }),
   phone: Type.Union([Type.String(), Type.Null()], { description: 'Phone number' }),
   birthDate: Type.Union([Type.String({ format: 'date' }), Type.Null()], { description: 'Date of birth (YYYY-MM-DD)' }),
   bio: Type.Union([Type.String(), Type.Null()], { description: 'Short bio/description' }),
@@ -51,18 +53,15 @@ export const UpdateUserAddressSchema = Type.Optional(Type.Object({
 
 export const UpdateUserBodySchema = Type.Object({
   name: Type.Optional(Type.String({ minLength: 2, maxLength: 100 })),
-  email: Type.Optional(Type.String({ format: 'email' })),
-  password: Type.Optional(Type.String({ minLength: 8 })),
   role: Type.Optional(Type.String({ enum: ['USER', 'ADMIN'] })),
   // Profile fields
-  avatarUrl: Type.Optional(Type.Union([Type.String({ maxLength: 500 }), Type.Null()])),
   phone: Type.Optional(Type.Union([Type.String({ maxLength: 20 }), Type.Null()])),
   birthDate: Type.Optional(Type.Union([Type.String({ format: 'date' }), Type.Null()])),
   bio: Type.Optional(Type.Union([Type.String({ maxLength: 500 }), Type.Null()])),
   locale: Type.Optional(Type.Union([Type.String({ maxLength: 10 }), Type.Null()])),
   timezone: Type.Optional(Type.Union([Type.String({ maxLength: 50 }), Type.Null()])),
   address: UpdateUserAddressSchema,
-});
+}, { additionalProperties: false });
 export type UpdateUserBody = Static<typeof UpdateUserBodySchema>;
 
 // ─── User Params ────────────────────────────────────────────────────────
@@ -99,4 +98,3 @@ export const PaginatedUsersResponseSchema = Type.Object({
   limit: Type.Number(),
   totalPages: Type.Number(),
 });
-

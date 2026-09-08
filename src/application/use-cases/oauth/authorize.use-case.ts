@@ -8,10 +8,14 @@ import {
   InvalidRedirectUriError,
   InvalidCodeChallengeError,
   ConsentRequiredError,
+  InvalidScopeError,
+  InvalidOAuthStateError,
 } from '../../../domain/errors/domain-errors.js';
 import { AuthorizationCode } from '../../../domain/entities/authorization-code.entity.js';
+import type { ISecureTokenService } from '../../ports/secure-token.port.js';
 import { v4 as uuidv4 } from 'uuid';
-import crypto from 'node:crypto';
+
+const PKCE_CHALLENGE_PATTERN = /^[A-Za-z0-9_-]{43}$/;
 
 export interface AuthorizeInput {
   userId: string;
@@ -37,6 +41,7 @@ export class AuthorizeUseCase {
     private readonly clientAppRepository: IClientAppRepository,
     private readonly authCodeRepository: IAuthorizationCodeRepository,
     private readonly consentRepository: IOAuthConsentRepository,
+    private readonly secureTokenService: ISecureTokenService,
     private readonly authCodeExpiryMinutes: number = 5,
   ) {}
 
@@ -54,10 +59,15 @@ export class AuthorizeUseCase {
       throw new InvalidRedirectUriError();
     }
 
-    // PKCE is recommended/required for public clients, we require it for all here unless configured otherwise.
-    // To be flexible, we'll enforce it if it's provided, or enforce it globally depending on policy.
-    // For now, let's accept it if provided.
-    if (input.codeChallenge && !['S256', 'plain'].includes(input.codeChallengeMethod || 'plain')) {
+    if (!input.state || input.state.length < 16 || input.state.length > 512) {
+      throw new InvalidOAuthStateError();
+    }
+
+    if (
+      input.codeChallengeMethod !== 'S256'
+      || !input.codeChallenge
+      || !PKCE_CHALLENGE_PATTERN.test(input.codeChallenge)
+    ) {
       throw new InvalidCodeChallengeError();
     }
 
@@ -65,7 +75,7 @@ export class AuthorizeUseCase {
     const requestedScopes = input.scope ? input.scope.split(' ') : clientApp.scopes as string[];
     const invalidScopes = requestedScopes.filter((s) => !clientApp.scopes.includes(s));
     if (invalidScopes.length > 0) {
-      throw new Error(`Invalid scopes requested: ${invalidScopes.join(', ')}`);
+      throw new InvalidScopeError();
     }
 
     // Check Consent
@@ -77,18 +87,19 @@ export class AuthorizeUseCase {
     }
 
     // Generate Auth Code
-    const code = crypto.randomBytes(32).toString('hex');
+    const code = this.secureTokenService.generate();
     const expiresAt = new Date(Date.now() + this.authCodeExpiryMinutes * 60000);
 
     const authCode = new AuthorizationCode({
       id: uuidv4(),
-      code,
+      // The legacy database column is named `code`; it stores only a digest.
+      code: this.secureTokenService.digest(code),
       clientId: clientApp.id,
       userId: input.userId,
       redirectUri: input.redirectUri,
       scope: requestedScopes.join(' '),
-      codeChallenge: input.codeChallenge ?? null,
-      codeChallengeMethod: input.codeChallengeMethod ?? null,
+      codeChallenge: input.codeChallenge,
+      codeChallengeMethod: 'S256',
       nonce: input.nonce ?? null,
       expiresAt,
       usedAt: null,

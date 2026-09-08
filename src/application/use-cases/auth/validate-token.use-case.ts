@@ -3,6 +3,8 @@
 
 import type { ITokenManager, TokenPayload } from '../../ports/token-manager.port.js';
 import type { ICacheProvider } from '../../ports/cache.port.js';
+import type { IUserRepository } from '../../../domain/repositories/user.repository.js';
+import type { ISessionRepository } from '../../../domain/repositories/session.repository.js';
 import { InvalidTokenError, TokenRevokedError } from '../../../domain/errors/domain-errors.js';
 
 const BLOCKLIST_PREFIX = 'blocklist:';
@@ -20,6 +22,8 @@ export class ValidateTokenUseCase {
   constructor(
     private readonly tokenManager: ITokenManager,
     private readonly cacheProvider: ICacheProvider,
+    private readonly userRepository: IUserRepository,
+    private readonly sessionRepository: ISessionRepository,
   ) {}
 
   async execute(input: ValidateTokenInput): Promise<ValidateTokenOutput> {
@@ -37,9 +41,18 @@ export class ValidateTokenUseCase {
       throw new TokenRevokedError();
     }
 
+    const user = await this.userRepository.findById(payload.sub);
+    if (!user || !user.isActive || !payload.sid) {
+      throw new TokenRevokedError();
+    }
+    const session = await this.sessionRepository.findById(payload.sid);
+    if (!session || !session.isActive || session.userId !== payload.sub) {
+      throw new TokenRevokedError();
+    }
+
     return {
       valid: true,
-      payload,
+      payload: { ...payload, email: user.email, role: user.role },
     };
   }
 }

@@ -7,7 +7,10 @@ export interface IWebhookRepository {
   listEndpoints(organizationId?: string | null): Promise<WebhookEndpoint[]>;
   updateEndpoint(endpoint: WebhookEndpoint): Promise<WebhookEndpoint>;
   deleteEndpoint(id: string): Promise<void>;
-  findActiveEndpointsByEvent(event: WebhookEvent): Promise<WebhookEndpoint[]>;
+  findActiveEndpointsByEvent(
+    event: WebhookEvent,
+    organizationId?: string,
+  ): Promise<WebhookEndpoint[]>;
 
   // Delivery management
   createDelivery(delivery: WebhookDelivery): Promise<WebhookDelivery>;

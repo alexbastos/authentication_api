@@ -4,12 +4,15 @@ import type { ICustomRoleRepository } from '../../../domain/repositories/custom-
 import type { IPermissionRepository } from '../../../domain/repositories/permission.repository.js';
 import type { CustomRole } from '../../../domain/entities/permission.entity.js';
 import { RoleNotFoundError, SystemRoleModificationError, PermissionNotFoundError } from '../../../domain/errors/domain-errors.js';
+import type { Role } from '../../../domain/entities/role.entity.js';
+import { assertGlobalAdmin } from '../../services/global-authorization.service.js';
 
 export interface UpdateCustomRoleInput {
   id: string;
   name?: string;
   description?: string | null;
   permissionCodes?: string[];
+  requesterRole: Role;
 }
 
 export class UpdateCustomRoleUseCase {
@@ -19,6 +22,7 @@ export class UpdateCustomRoleUseCase {
   ) {}
 
   async execute(input: UpdateCustomRoleInput): Promise<CustomRole> {
+    assertGlobalAdmin(input.requesterRole);
     const role = await this.roleRepository.findById(input.id);
     if (!role) throw new RoleNotFoundError(input.id);
     if (role.isSystem) throw new SystemRoleModificationError();

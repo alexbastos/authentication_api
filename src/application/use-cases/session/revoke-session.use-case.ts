@@ -1,7 +1,8 @@
 // ─── Use Case: Revoke Session ─────────────────────────────────────────────
+// Revokes a logical session and all its associated refresh tokens.
+// Idempotent: already-revoked or non-existent sessions return success silently.
 
-import type { IRefreshTokenRepository } from '../../../domain/repositories/refresh-token.repository.js';
-import { SessionNotFoundError } from '../../../domain/errors/domain-errors.js';
+import type { IAccountSecurityRepository } from '../../ports/account-security.port.js';
 
 export interface RevokeSessionInput {
   userId: string;
@@ -9,21 +10,12 @@ export interface RevokeSessionInput {
 }
 
 export class RevokeSessionUseCase {
-  constructor(
-    private readonly refreshTokenRepository: IRefreshTokenRepository,
-  ) {}
+  constructor(private readonly accountSecurityRepository: IAccountSecurityRepository) {}
 
   async execute(input: RevokeSessionInput): Promise<void> {
-    const token = await this.refreshTokenRepository.findById(input.sessionId);
-
-    if (!token || token.userId !== input.userId) {
-      throw new SessionNotFoundError(input.sessionId);
-    }
-
-    if (token.isRevoked || token.isExpired) {
-      throw new SessionNotFoundError(input.sessionId);
-    }
-
-    await this.refreshTokenRepository.revokeById(input.sessionId);
+    await this.accountSecurityRepository.revokeSessionAndTokens(
+      input.userId,
+      input.sessionId,
+    );
   }
 }

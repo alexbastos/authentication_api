@@ -6,6 +6,7 @@ import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
+import multipart, { ajvFilePlugin } from '@fastify/multipart';
 
 import type { Env } from './infrastructure/config/env.js';
 import type { Container } from './container.js';
@@ -17,6 +18,7 @@ import { registerOrganizationRoutes } from './adapters/http/routes/organization.
 import { registerRbacRoutes } from './adapters/http/routes/rbac.routes.js';
 import { registerWebhookRoutes } from './adapters/http/routes/webhook.routes.js';
 import { registerOAuthRoutes } from './adapters/http/routes/oauth.routes.js';
+import { registerMfaRoutes } from './adapters/http/routes/mfa.routes.js';
 import { DomainError } from './domain/errors/domain-errors.js';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -33,9 +35,28 @@ try {
 
 
 export async function buildApp(env: Env, container: Container): Promise<FastifyInstance> {
+  const docsEnabled = env.NODE_ENV !== 'production' || env.ENABLE_SWAGGER;
   const app = Fastify({
     logger: {
       level: env.LOG_LEVEL,
+      redact: {
+        paths: [
+          'req.headers.authorization',
+          'req.headers.cookie',
+          'res.headers["set-cookie"]',
+          'password',
+          'token',
+          'refreshToken',
+          'clientSecret',
+          'code',
+          '*.password',
+          '*.token',
+          '*.refreshToken',
+          '*.clientSecret',
+          '*.code',
+        ],
+        censor: '[Redacted]',
+      },
       ...(env.NODE_ENV === 'development' && {
         transport: {
           target: 'pino-pretty',
@@ -43,11 +64,19 @@ export async function buildApp(env: Env, container: Container): Promise<FastifyI
         },
       }),
     },
+    trustProxy: env.TRUST_PROXY,
+    bodyLimit: Math.max(1024 * 1024, env.AVATAR_MAX_SIZE_MB * 1024 * 1024 + 64 * 1024),
+    ajv: {
+      plugins: [(ajv) => {
+        ajvFilePlugin(ajv);
+        return ajv;
+      }],
+    },
   });
 
   // ─── Security Plugins ───────────────────────────────────────────────
   await app.register(helmet, {
-    contentSecurityPolicy: false, // Disabled for Swagger UI
+    contentSecurityPolicy: docsEnabled ? false : undefined,
   });
 
   await app.register(cors, {
@@ -57,14 +86,14 @@ export async function buildApp(env: Env, container: Container): Promise<FastifyI
         return;
       }
 
-      const allowedOrigins = env.CORS_ORIGIN.split(',');
+      const allowedOrigins = env.CORS_ORIGIN.split(',').map((value) => value.trim());
       if (allowedOrigins.includes(origin) || allowedOrigins.includes('*')) {
         cb(null, true);
         return;
       }
 
       // Automatically allow any localhost port for local development
-      if (/^http:\/\/localhost:\d+$/.test(origin)) {
+      if (env.NODE_ENV === 'development' && /^http:\/\/localhost:\d+$/.test(origin)) {
         cb(null, true);
         return;
       }
@@ -84,7 +113,10 @@ export async function buildApp(env: Env, container: Container): Promise<FastifyI
       rateLimitRedis = { redis: container.redis.getClient() };
       app.log.info('✅ Rate-limit using Redis store');
     }
-  } catch (err) {
+  } catch {
+    if (env.NODE_ENV === 'production') {
+      throw new Error('Redis is required for distributed rate limiting in production');
+    }
     app.log.warn('⚠️  Redis unavailable for rate-limit, falling back to in-memory store');
   }
 
@@ -94,8 +126,17 @@ export async function buildApp(env: Env, container: Container): Promise<FastifyI
     ...rateLimitRedis,
   });
 
+  // ─── Multipart (File Upload) ────────────────────────────────────────
+  await app.register(multipart, {
+    attachFieldsToBody: true,
+    limits: {
+      fileSize: (env.AVATAR_MAX_SIZE_MB || 5) * 1024 * 1024,
+      files: 1,
+    },
+  });
+
   // ─── Swagger / OpenAPI ──────────────────────────────────────────────
-  await app.register(swagger, {
+  if (docsEnabled) await app.register(swagger, {
     openapi: {
       openapi: '3.1.0',
       info: {
@@ -157,11 +198,12 @@ Authorization: Bearer <access_token>
         { name: 'Organizations', description: 'Organization management (multi-tenancy)' },
         { name: 'API Gateway', description: 'Endpoints for API Gateway integration' },
         { name: 'OIDC', description: 'OpenID Connect discovery endpoints' },
+        { name: 'MFA/2FA', description: 'Multi-Factor Authentication setup, verification, and management' },
       ],
     },
   });
 
-  await app.register(swaggerUi, {
+  if (docsEnabled) await app.register(swaggerUi, {
     routePrefix: '/docs/authentication_api',
     uiConfig: {
       docExpansion: 'list',
@@ -184,13 +226,33 @@ Authorization: Bearer <access_token>
             uptime: { type: 'number' },
           },
         },
+        503: {
+          type: 'object',
+          properties: {
+            status: { type: 'string' },
+            timestamp: { type: 'string' },
+            uptime: { type: 'number' },
+          },
+        },
       },
     },
-    handler: async () => ({
-      status: 'ok',
-      timestamp: new Date().toISOString(),
-      uptime: process.uptime(),
-    }),
+    handler: async (_request, reply) => {
+      const response = {
+        status: 'ok',
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime(),
+      };
+
+      try {
+        await Promise.all([
+          container.prisma.$queryRaw`SELECT 1`,
+          container.redis.getClient().ping(),
+        ]);
+        return response;
+      } catch {
+        return reply.status(503).send({ ...response, status: 'unavailable' });
+      }
+    },
   });
 
   // ─── Routes ─────────────────────────────────────────────────────────
@@ -201,10 +263,16 @@ Authorization: Bearer <access_token>
   registerOrganizationRoutes(app, container.organizationController, container.authMiddleware);
   registerRbacRoutes(app, container.rbacController, container.authMiddleware);
   registerWebhookRoutes(app, container.webhookController, container.authMiddleware);
-  registerOAuthRoutes(app, container.oauthController, container.authMiddleware);
+  registerOAuthRoutes(
+    app,
+    container.oauthController,
+    container.authMiddleware,
+    container.oauthAuthMiddleware ?? container.authMiddleware,
+  );
+  registerMfaRoutes(app, container.mfaController, container.authMiddleware);
 
   // ─── Global Error Handler ───────────────────────────────────────────
-  app.setErrorHandler((error: Error & { validation?: unknown; code?: string; statusCode?: number }, _request, reply) => {
+  app.setErrorHandler((error: Error & { validation?: unknown; code?: string; statusCode?: number }, request, reply) => {
     const logger = app.log;
 
     // Domain errors → mapped HTTP status codes
@@ -235,27 +303,65 @@ Authorization: Bearer <access_token>
         ORGANIZATION_SLUG_TAKEN: 409,
         NOT_ORGANIZATION_MEMBER: 403,
         CANNOT_REMOVE_OWNER: 400,
+        CANNOT_ASSIGN_OWNER: 400,
         INVITATION_NOT_FOUND: 404,
         INVITATION_EXPIRED: 400,
         INVITATION_ALREADY_ACCEPTED: 400,
+        INVITATION_EMAIL_MISMATCH: 403,
         INSUFFICIENT_ORG_ROLE: 403,
         INSUFFICIENT_PERMISSIONS: 403,
         ROLE_NOT_FOUND: 404,
+        PERMISSION_NOT_FOUND: 404,
+        ROLE_ALREADY_EXISTS: 409,
+        SYSTEM_ROLE_MODIFICATION: 400,
         WEBHOOK_NOT_FOUND: 404,
+        INVALID_WEBHOOK_URL: 400,
         INVALID_REDIRECT_URI: 400,
         INVALID_CODE_CHALLENGE: 400,
+        INVALID_SCOPE: 400,
         CONSENT_REQUIRED: 403,
         INVALID_GRANT: 400,
+        INVALID_CLIENT: 401,
+        INVALID_OAUTH_STATE: 400,
+        UNSUPPORTED_GRANT_TYPE: 400,
         AUTHORIZATION_CODE_EXPIRED: 400,
+        // MFA errors
+        MFA_TOKEN_INVALID: 401,
+        MFA_TOKEN_EXPIRED: 401,
+        MFA_CODE_INVALID: 401,
+        MFA_METHOD_NOT_ALLOWED: 400,
+        MFA_ATTEMPTS_EXCEEDED: 429,
+        MFA_ALREADY_ENABLED: 409,
+        MFA_NOT_ENABLED: 400,
+        MFA_SETUP_NOT_STARTED: 400,
+        MFA_RATE_LIMITED: 429,
+        // Avatar errors
+        INVALID_FILE_TYPE: 400,
+        FILE_TOO_LARGE: 400,
+        INVALID_FILE_CONTENT: 400,
       };
 
       const statusCode = statusMap[error.code] ?? 500;
+      const oauthErrorNames: Record<string, string> = {
+        INVALID_CLIENT: 'invalid_client',
+        INVALID_GRANT: 'invalid_grant',
+        INVALID_SCOPE: 'invalid_scope',
+        UNSUPPORTED_GRANT_TYPE: 'unsupported_grant_type',
+        INVALID_CODE_CHALLENGE: 'invalid_grant',
+        AUTHORIZATION_CODE_EXPIRED: 'invalid_grant',
+      };
+      const isOAuthTokenEndpoint = request.url === '/oauth/token';
+      if (isOAuthTokenEndpoint && error.code === 'INVALID_CLIENT') {
+        reply.header('WWW-Authenticate', 'Basic realm="oauth/token"');
+      }
 
-      logger.warn({ code: error.code, message: error.message }, 'Domain error');
+      logger.warn({ code: error.code }, 'Domain error');
 
       return reply.status(statusCode).send({
         statusCode,
-        error: statusCode >= 500 ? 'Internal Server Error' : error.name,
+        error: statusCode >= 500
+          ? 'Internal Server Error'
+          : (isOAuthTokenEndpoint ? oauthErrorNames[error.code] : undefined) ?? error.name,
         code: error.code,
         message: error.message,
       });
@@ -271,8 +377,22 @@ Authorization: Bearer <access_token>
       });
     }
 
+    // Multipart size errors happen while the plugin is parsing the request,
+    // before the avatar use case can apply its own size validation.
+    if (error instanceof app.multipartErrors.RequestFileTooLargeError) {
+      return reply.status(400).send({
+        statusCode: 400,
+        error: 'FileTooLargeError',
+        code: 'FILE_TOO_LARGE',
+        message: `File size exceeds the maximum allowed (${env.AVATAR_MAX_SIZE_MB} MB)`,
+      });
+    }
+
     // Unexpected errors
-    logger.error(error, 'Unexpected error');
+    logger.error(
+      { errorName: error.name, errorCode: error.code },
+      'Unexpected error',
+    );
 
     return reply.status(500).send({
       statusCode: 500,
@@ -284,4 +404,3 @@ Authorization: Bearer <access_token>
 
   return app;
 }
-

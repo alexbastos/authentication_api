@@ -9,7 +9,7 @@ import type { InviteMemberUseCase } from '../../../application/use-cases/organiz
 import type { AcceptInvitationUseCase } from '../../../application/use-cases/organization/accept-invitation.use-case.js';
 import type { RemoveMemberUseCase } from '../../../application/use-cases/organization/remove-member.use-case.js';
 import type { ChangeMemberRoleUseCase } from '../../../application/use-cases/organization/change-member-role.use-case.js';
-import type { IOrganizationRepository } from '../../../domain/repositories/organization.repository.js';
+import type { ListOrganizationMembersUseCase } from '../../../application/use-cases/organization/list-organization-members.use-case.js';
 import { OrgRole } from '../../../domain/entities/role.entity.js';
 import type {
   CreateOrganizationBody,
@@ -31,7 +31,7 @@ export class OrganizationController {
     private readonly acceptInvitationUC: AcceptInvitationUseCase,
     private readonly removeMemberUC: RemoveMemberUseCase,
     private readonly changeMemberRoleUC: ChangeMemberRoleUseCase,
-    private readonly orgRepository: IOrganizationRepository,
+    private readonly listMembersUC: ListOrganizationMembersUseCase,
   ) {}
 
   async create(request: FastifyRequest<{ Body: CreateOrganizationBody }>, reply: FastifyReply) {
@@ -69,8 +69,8 @@ export class OrganizationController {
   }
 
   async listMembers(request: FastifyRequest<{ Params: OrgIdParams }>, reply: FastifyReply) {
-    const members = await this.orgRepository.listMembers(request.params.orgId);
-    return reply.status(200).send(members.map((m) => m.toJSON()));
+    const members = await this.listMembersUC.execute(request.params.orgId, request.user!.sub);
+    return reply.status(200).send(members);
   }
 
   async inviteMember(request: FastifyRequest<{ Params: OrgIdParams; Body: InviteMemberBody }>, reply: FastifyReply) {

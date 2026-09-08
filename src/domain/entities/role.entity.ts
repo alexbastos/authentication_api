@@ -42,3 +42,8 @@ export enum OrgRole {
   MEMBER = 'MEMBER',
   VIEWER = 'VIEWER',
 }
+
+export enum MfaMethod {
+  TOTP = 'TOTP',
+  EMAIL = 'EMAIL',
+}

@@ -1,12 +1,12 @@
 // ─── Use Case: Update User ────────────────────────────────────────────────
 
 import type { IUserRepository } from '../../../domain/repositories/user.repository.js';
-import type { IHasher } from '../../ports/hasher.port.js';
+import type { IStorageService } from '../../ports/storage.port.js';
 import type { UserProfile, UserAddress } from '../../../domain/entities/user.entity.js';
+import { resolveAvatarUrl } from '../../services/avatar-url.service.js';
 import { Role } from '../../../domain/entities/role.entity.js';
 import {
   UserNotFoundError,
-  UserAlreadyExistsError,
   ForbiddenError,
 } from '../../../domain/errors/domain-errors.js';
 import { WebhookEvent } from '../../../domain/entities/webhook.entity.js';
@@ -15,13 +15,10 @@ import type { DispatchEventUseCase } from '../webhook/dispatch-event.use-case.js
 export interface UpdateUserInput {
   userId: string;
   name?: string;
-  email?: string;
-  password?: string;
   role?: Role;
   requesterId: string;
   requesterRole: Role;
   // Profile fields
-  avatarUrl?: string | null;
   phone?: string | null;
   birthDate?: Date | null;
   bio?: string | null;
@@ -46,7 +43,7 @@ export interface UpdateUserOutput {
 export class UpdateUserUseCase {
   constructor(
     private readonly userRepository: IUserRepository,
-    private readonly hasher: IHasher,
+    private readonly storageService: IStorageService,
     private readonly dispatchEventUC?: DispatchEventUseCase,
   ) {}
 
@@ -75,26 +72,12 @@ export class UpdateUserUseCase {
       user.updateName(input.name);
     }
 
-    if (input.email && input.email !== user.email) {
-      const existingUser = await this.userRepository.findByEmail(input.email);
-      if (existingUser) {
-        throw new UserAlreadyExistsError(input.email);
-      }
-      user.updateEmail(input.email.toLowerCase().trim());
-    }
-
-    if (input.password) {
-      const hashedPassword = await this.hasher.hash(input.password);
-      user.updatePassword(hashedPassword);
-    }
-
     if (input.role) {
       user.updateRole(input.role);
     }
 
     // 4. Update profile fields
     const hasProfileUpdate =
-      input.avatarUrl !== undefined ||
       input.phone !== undefined ||
       input.birthDate !== undefined ||
       input.bio !== undefined ||
@@ -104,19 +87,12 @@ export class UpdateUserUseCase {
 
     if (hasProfileUpdate) {
       user.updateProfile({
-        avatarUrl: input.avatarUrl,
         phone: input.phone,
         birthDate: input.birthDate,
         bio: input.bio,
         locale: input.locale,
         timezone: input.timezone,
-        address: input.address ? {
-          street: input.address.street ?? null,
-          city: input.address.city ?? null,
-          state: input.address.state ?? null,
-          zipCode: input.address.zipCode ?? null,
-          country: input.address.country ?? null,
-        } : undefined,
+        address: input.address,
       });
     }
 
@@ -130,8 +106,11 @@ export class UpdateUserUseCase {
           email: updatedUser.email,
           timestamp: new Date().toISOString(),
         },
-      }).catch(console.error);
+      }).catch(() => undefined);
     }
+
+    const profile = updatedUser.profile;
+    profile.avatarUrl = await resolveAvatarUrl(profile.avatarUrl, this.storageService);
 
     return {
       id: updatedUser.id,
@@ -141,10 +120,9 @@ export class UpdateUserUseCase {
       status: updatedUser.status,
       emailVerified: updatedUser.emailVerified,
       socialProviders: updatedUser.socialAccounts?.map((sa) => sa.provider) || [],
-      profile: updatedUser.profile,
+      profile,
       createdAt: updatedUser.createdAt,
       updatedAt: updatedUser.updatedAt,
     };
   }
 }
-

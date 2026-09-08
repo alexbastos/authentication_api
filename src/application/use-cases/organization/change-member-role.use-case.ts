@@ -7,6 +7,7 @@ import {
   NotOrganizationMemberError,
   InsufficientOrgRoleError,
   CannotRemoveOwnerError,
+  CannotAssignOwnerError,
 } from '../../../domain/errors/domain-errors.js';
 
 export interface ChangeMemberRoleInput {
@@ -20,6 +21,7 @@ export class ChangeMemberRoleUseCase {
   constructor(private readonly orgRepository: IOrganizationRepository) {}
 
   async execute(input: ChangeMemberRoleInput) {
+    if (input.newRole === OrgRole.OWNER) throw new CannotAssignOwnerError();
     const org = await this.orgRepository.findById(input.orgId);
     if (!org) {
       throw new OrganizationNotFoundError(input.orgId);

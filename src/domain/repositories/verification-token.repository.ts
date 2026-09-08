@@ -5,7 +5,7 @@ export interface IVerificationTokenRepository {
   create(token: VerificationToken): Promise<VerificationToken>;
   findByTokenHash(tokenHash: string, type: VerificationTokenType): Promise<VerificationToken | null>;
   findActiveByUserId(userId: string, type: VerificationTokenType): Promise<VerificationToken | null>;
-  markAsUsed(id: string): Promise<void>;
+  consume(id: string): Promise<boolean>;
   deleteByUserId(userId: string, type: VerificationTokenType): Promise<void>;
   findLatestByUserIdAndType(userId: string, type: VerificationTokenType): Promise<VerificationToken | null>;
 }

@@ -20,7 +20,7 @@ export type WebhookIdParams = Static<typeof WebhookIdParamsSchema>;
 // ─── Register Webhook ───────────────────────────────────────────────────
 
 export const RegisterWebhookBodySchema = Type.Object({
-  url: Type.String({ format: 'uri', maxLength: 500, description: 'Webhook delivery URL (HTTPS recommended)' }),
+  url: Type.String({ format: 'uri', pattern: '^https://', maxLength: 500, description: 'Public HTTPS webhook delivery URL' }),
   events: Type.Array(WebhookEventEnum, { minItems: 1, description: 'Events to subscribe to' }),
   organizationId: Type.Optional(Type.Union([Type.String(), Type.Null()])),
   description: Type.Optional(Type.String({ maxLength: 255 })),
@@ -30,7 +30,7 @@ export type RegisterWebhookBody = Static<typeof RegisterWebhookBodySchema>;
 // ─── Update Webhook ─────────────────────────────────────────────────────
 
 export const UpdateWebhookBodySchema = Type.Object({
-  url: Type.Optional(Type.String({ format: 'uri', maxLength: 500 })),
+  url: Type.Optional(Type.String({ format: 'uri', pattern: '^https://', maxLength: 500 })),
   events: Type.Optional(Type.Array(WebhookEventEnum, { minItems: 1 })),
   description: Type.Optional(Type.Union([Type.String({ maxLength: 255 }), Type.Null()])),
   isActive: Type.Optional(Type.Boolean()),
@@ -42,7 +42,6 @@ export type UpdateWebhookBody = Static<typeof UpdateWebhookBodySchema>;
 export const WebhookEndpointResponseSchema = Type.Object({
   id: Type.String(),
   url: Type.String(),
-  secret: Type.String({ description: 'HMAC signing secret (only shown once on creation)' }),
   events: Type.Array(Type.String()),
   organizationId: Type.Union([Type.String(), Type.Null()]),
   isActive: Type.Boolean(),
@@ -50,6 +49,13 @@ export const WebhookEndpointResponseSchema = Type.Object({
   createdAt: Type.String({ format: 'date-time' }),
   updatedAt: Type.String({ format: 'date-time' }),
 });
+
+export const WebhookCreatedResponseSchema = Type.Intersect([
+  WebhookEndpointResponseSchema,
+  Type.Object({
+    secret: Type.String({ description: 'HMAC signing secret; returned only on creation' }),
+  }),
+]);
 
 export const WebhookListResponseSchema = Type.Array(WebhookEndpointResponseSchema);
 

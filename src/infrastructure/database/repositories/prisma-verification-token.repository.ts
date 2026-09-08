@@ -53,11 +53,12 @@ export class PrismaVerificationTokenRepository implements IVerificationTokenRepo
     return this.toDomain(raw);
   }
 
-  async markAsUsed(id: string): Promise<void> {
-    await this.prisma.verificationToken.update({
-      where: { id },
+  async consume(id: string): Promise<boolean> {
+    const result = await this.prisma.verificationToken.updateMany({
+      where: { id, usedAt: null, expiresAt: { gt: new Date() } },
       data: { usedAt: new Date() },
     });
+    return result.count === 1;
   }
 
   async deleteByUserId(userId: string, type: VerificationTokenType): Promise<void> {

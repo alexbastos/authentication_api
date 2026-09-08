@@ -51,8 +51,8 @@ export class AwsSesEmailService implements IEmailService {
 
     try {
       await this.client.send(command);
-    } catch (error) {
-      console.error('[AWS SES] Falha ao enviar e-mail de verificação', error);
+    } catch {
+      console.error('[AWS SES] Falha ao enviar e-mail de verificação');
       throw new Error('Falha ao enviar e-mail. Verifique o provedor.');
     }
   }
@@ -92,8 +92,46 @@ export class AwsSesEmailService implements IEmailService {
 
     try {
       await this.client.send(command);
-    } catch (error) {
-      console.error('[AWS SES] Falha ao enviar e-mail de redefinição de senha', error);
+    } catch {
+      console.error('[AWS SES] Falha ao enviar e-mail de redefinição de senha');
+      throw new Error('Falha ao enviar e-mail. Verifique o provedor.');
+    }
+  }
+
+  async sendMfaCode(to: string, name: string, code: string): Promise<void> {
+    const command = new SendEmailCommand({
+      Source: this.sourceEmail,
+      Destination: {
+        ToAddresses: [to],
+      },
+      Message: {
+        Subject: {
+          Data: 'Seu código de verificação',
+          Charset: 'UTF-8',
+        },
+        Body: {
+          Html: {
+            Data: `
+              <h2>Olá, ${name}.</h2>
+              <p>Seu código de verificação em duas etapas é:</p>
+              <h1 style="letter-spacing: 8px; font-size: 36px; text-align: center; padding: 16px; background: #f4f4f4; border-radius: 8px;">${code}</h1>
+              <p>Este código expira em <strong>10 minutos</strong>.</p>
+              <p><small>Se você não solicitou este código, ignore este e-mail.</small></p>
+            `,
+            Charset: 'UTF-8',
+          },
+          Text: {
+            Data: `Olá, ${name}.\n\nSeu código de verificação 2FA é: ${code}\n\nEste código expira em 10 minutos.`,
+            Charset: 'UTF-8',
+          },
+        },
+      },
+    });
+
+    try {
+      await this.client.send(command);
+    } catch {
+      console.error('[AWS SES] Falha ao enviar código MFA');
       throw new Error('Falha ao enviar e-mail. Verifique o provedor.');
     }
   }

@@ -6,9 +6,13 @@ import {
   WebhookEndpoint, WebhookDelivery,
   WebhookEvent, WebhookDeliveryStatus,
 } from '../../../domain/entities/webhook.entity.js';
+import type { IDataProtector } from '../../../application/ports/data-protector.port.js';
 
 export class PrismaWebhookRepository implements IWebhookRepository {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(
+    private readonly prisma: PrismaClient,
+    private readonly dataProtector?: IDataProtector,
+  ) {}
 
   // ─── Endpoint CRUD ──────────────────────────────────────────────────
 
@@ -18,7 +22,7 @@ export class PrismaWebhookRepository implements IWebhookRepository {
       data: {
         id: data.id,
         url: data.url,
-        secret: data.secret,
+        secret: this.dataProtector?.protect(data.secret) ?? data.secret,
         events: data.events as any[],
         organizationId: data.organizationId,
         isActive: data.isActive,
@@ -31,6 +35,7 @@ export class PrismaWebhookRepository implements IWebhookRepository {
   async findEndpointById(id: string): Promise<WebhookEndpoint | null> {
     const record = await this.prisma.webhookEndpoint.findUnique({ where: { id } });
     if (!record) return null;
+    await this.migrateLegacySecret(record);
     return this.toEndpointDomain(record);
   }
 
@@ -40,6 +45,7 @@ export class PrismaWebhookRepository implements IWebhookRepository {
       where,
       orderBy: { createdAt: 'desc' },
     });
+    await Promise.all(records.map((record) => this.migrateLegacySecret(record)));
     return records.map((r) => this.toEndpointDomain(r));
   }
 
@@ -61,13 +67,25 @@ export class PrismaWebhookRepository implements IWebhookRepository {
     await this.prisma.webhookEndpoint.delete({ where: { id } });
   }
 
-  async findActiveEndpointsByEvent(event: WebhookEvent): Promise<WebhookEndpoint[]> {
+  async findActiveEndpointsByEvent(
+    event: WebhookEvent,
+    organizationId?: string,
+  ): Promise<WebhookEndpoint[]> {
     const records = await this.prisma.webhookEndpoint.findMany({
       where: {
         isActive: true,
         events: { has: event as any },
+        ...(organizationId === undefined
+          ? { organizationId: null }
+          : {
+            OR: [
+              { organizationId },
+              { organizationId: null },
+            ],
+          }),
       },
     });
+    await Promise.all(records.map((record) => this.migrateLegacySecret(record)));
     return records.map((r) => this.toEndpointDomain(r));
   }
 
@@ -130,11 +148,19 @@ export class PrismaWebhookRepository implements IWebhookRepository {
 
   // ─── Mappers ────────────────────────────────────────────────────────
 
+  private async migrateLegacySecret(record: { id: string; secret: string }): Promise<void> {
+    if (!this.dataProtector || this.dataProtector.isProtected(record.secret)) return;
+    await this.prisma.webhookEndpoint.update({
+      where: { id: record.id },
+      data: { secret: this.dataProtector.protect(record.secret) },
+    });
+  }
+
   private toEndpointDomain(record: any): WebhookEndpoint {
     return new WebhookEndpoint({
       id: record.id,
       url: record.url,
-      secret: record.secret,
+      secret: this.dataProtector?.unprotect(record.secret) ?? record.secret,
       events: record.events as WebhookEvent[],
       organizationId: record.organizationId,
       isActive: record.isActive,

@@ -1,7 +1,6 @@
 // ─── Enterprise Business Rules ────────────────────────────────────────────
 // Pure domain entity for OAuth Authorization Codes
 
-import crypto from 'node:crypto';
 import { AuthorizationCodeExpiredError } from '../errors/domain-errors.js';
 
 export interface AuthorizationCodeProps {
@@ -51,24 +50,6 @@ export class AuthorizationCode {
   get usedAt(): Date | null { return this._usedAt; }
   get isUsed(): boolean { return this._usedAt !== null; }
   get isExpired(): boolean { return this.expiresAt < new Date(); }
-
-  validatePkce(codeVerifier: string): boolean {
-    if (!this.codeChallenge || !this.codeChallengeMethod) return true; // PKCE not used
-
-    if (this.codeChallengeMethod === 'S256') {
-      const expectedChallenge = crypto
-        .createHash('sha256')
-        .update(codeVerifier)
-        .digest('base64url'); // base64url is safe for PKCE S256
-      return expectedChallenge === this.codeChallenge;
-    }
-
-    if (this.codeChallengeMethod === 'plain') {
-      return codeVerifier === this.codeChallenge;
-    }
-
-    return false;
-  }
 
   use(): void {
     if (this.isUsed) throw new Error('Authorization code already used');

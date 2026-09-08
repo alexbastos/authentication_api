@@ -8,10 +8,10 @@ export const RegisterClientAppBodySchema = Type.Object({
     minItems: 1,
     description: 'Allowed redirect URLs',
   }),
-  grantTypes: Type.Optional(Type.Array(Type.String(), { description: 'OAuth grant types (e.g. authorization_code)' })),
+  grantTypes: Type.Optional(Type.Array(Type.Literal('authorization_code'), { description: 'Supported OAuth grant type' })),
   scopes: Type.Optional(Type.Array(Type.String(), { description: 'Allowed OAuth scopes' })),
-  tokenEndpointAuth: Type.Optional(Type.String({ description: 'Client authentication method (e.g. client_secret_post)' })),
-});
+  tokenEndpointAuth: Type.Optional(Type.String({ enum: ['client_secret_basic', 'client_secret_post', 'none'] })),
+}, { additionalProperties: false });
 export type RegisterClientAppBody = Static<typeof RegisterClientAppBodySchema>;
 
 export const ClientAppResponseSchema = Type.Object({

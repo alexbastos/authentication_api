@@ -24,10 +24,9 @@ Este documento lista as funcionalidades, melhorias de segurança e recursos de g
   - **Status:** ✅ Implementado
   - Bloqueio após 5 tentativas falhas em 15 minutos por IP. Utiliza Redis com fallback resiliente (rate-limit não derruba a API se o Redis cair).
 
-- [ ] **Autenticação de 2 Fatores (MFA/2FA):**
-  - **Status:** ⏳ Pendente
-  - **Motivo:** Camada extra de segurança, essencial para perfis de `ADMIN` ou dados sensíveis.
-  - **Como:** Implementar TOTP (Google Authenticator, Authy) ou envio de código via e-mail/SMS.
+- [x] **Autenticação de 2 Fatores (MFA/2FA):**
+  - **Status:** ✅ Implementado
+  - TOTP (Google Authenticator/Authy) com QR Code e fallback por e-mail. 7 use cases: Setup, Verify Setup, Validate Code, Disable, Status, Regenerate Recovery Codes, Send Email Code. Fluxo de login modificado para exigir 2FA (HTTP 403 com `mfaToken`). 10 recovery codes gerados no setup. Endpoints: `POST /auth/mfa/setup`, `POST /auth/mfa/verify-setup`, `POST /auth/mfa/verify`, `POST /auth/mfa/disable`, `GET /auth/mfa/status`, `POST /auth/mfa/recovery-codes/regenerate`, `POST /auth/mfa/email-code`.
 
 ---
 
@@ -79,9 +78,9 @@ Este documento lista as funcionalidades, melhorias de segurança e recursos de g
 
 | Prioridade | Total | Concluído | Pendente |
 |---|---|---|---|
-| 🔴 Alta | 5 | 4 | 1 |
+| 🔴 Alta | 5 | 5 | 0 |
 | 🟡 Média | 4 | 4 | 0 |
 | 🟢 Baixa | 5 | 5 | 0 |
-| **Total** | **14** | **13** | **1** |
+| **Total** | **14** | **14** | **0** |
 
-> **Próximo passo:** Implementar Autenticação de 2 Fatores (MFA/2FA) — a única funcionalidade de alta prioridade ainda pendente.
+> **🎉 Todas as funcionalidades planejadas foram implementadas!** Pendente apenas deploy da migration no banco de dados e teste manual.

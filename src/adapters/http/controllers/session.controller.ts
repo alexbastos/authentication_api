@@ -22,6 +22,7 @@ export class SessionController {
   async listSessions(request: FastifyRequest, reply: FastifyReply) {
     const result = await this.listSessionsUC.execute({
       userId: request.user!.sub,
+      currentSessionId: request.user!.sid,
     });
 
     return reply.status(200).send(result);

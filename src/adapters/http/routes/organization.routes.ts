@@ -138,6 +138,7 @@ export function registerOrganizationRoutes(
       body: InviteMemberBodySchema,
       response: {
         201: InvitationResponseSchema,
+        400: ErrorResponseSchema,
         401: ErrorResponseSchema,
         403: ErrorResponseSchema,
         404: ErrorResponseSchema,
@@ -201,6 +202,7 @@ export function registerOrganizationRoutes(
       body: ChangeMemberRoleBodySchema,
       response: {
         200: MemberResponseSchema,
+        400: ErrorResponseSchema,
         401: ErrorResponseSchema,
         403: ErrorResponseSchema,
         404: ErrorResponseSchema,
