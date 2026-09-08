@@ -1,7 +1,7 @@
 // ─── Use Case: Delete User (Soft Delete) ──────────────────────────────────
 
 import type { IUserRepository } from '../../../domain/repositories/user.repository.js';
-import type { IRefreshTokenRepository } from '../../../domain/repositories/refresh-token.repository.js';
+import type { IAccountSecurityRepository } from '../../ports/account-security.port.js';
 import { Role } from '../../../domain/entities/role.entity.js';
 import {
   UserNotFoundError,
@@ -19,7 +19,7 @@ export interface DeleteUserInput {
 export class DeleteUserUseCase {
   constructor(
     private readonly userRepository: IUserRepository,
-    private readonly refreshTokenRepository: IRefreshTokenRepository,
+    private readonly accountSecurityRepository: IAccountSecurityRepository,
     private readonly dispatchEventUC?: DispatchEventUseCase,
   ) {}
 
@@ -38,12 +38,8 @@ export class DeleteUserUseCase {
       throw new UserNotFoundError(input.userId);
     }
 
-    // 3. Soft delete: deactivate user
-    user.deactivate();
-    await this.userRepository.update(user);
-
-    // 4. Revoke all refresh tokens
-    await this.refreshTokenRepository.revokeAllByUserId(input.userId);
+    // 3. Soft delete and revoke all sessions in the same database transaction.
+    await this.accountSecurityRepository.deactivateUserAndRevokeSessions(input.userId);
 
     if (this.dispatchEventUC) {
       this.dispatchEventUC.execute({
@@ -52,7 +48,7 @@ export class DeleteUserUseCase {
           userId: input.userId,
           timestamp: new Date().toISOString(),
         },
-      }).catch(console.error);
+      }).catch(() => undefined);
     }
   }
 }

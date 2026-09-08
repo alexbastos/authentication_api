@@ -14,11 +14,25 @@ export interface TokenPayload {
   exp: number;        // Expiration
   iss: string;        // Issuer
   aud?: string;       // Audience (OAuth client_id)
+  scopes?: string[];
+  tokenUse: 'access';
+}
+
+export interface MfaTokenPayload {
+  sub: string;
+  challengeId: string;
+  tokenUse: 'mfa';
+  jti: string;
+  iat: number;
+  exp: number;
+  iss: string;
+  aud: 'mfa-challenge';
 }
 
 export interface IdTokenPayload {
   sub: string;
   email: string;
+  emailVerified?: boolean;
   name: string;
   picture?: string;
   aud: string;        // client_id
@@ -41,7 +55,13 @@ export interface ITokenManager {
     aud?: string;
   }): Promise<string>;
   generateRefreshToken(): string;
+  generateMfaToken(payload: {
+    sub: string;
+    challengeId: string;
+    expiresInSeconds: number;
+  }): Promise<string>;
   generateIdToken(payload: IdTokenPayload): Promise<string>;
-  verifyAccessToken(token: string): Promise<TokenPayload>;
+  verifyAccessToken(token: string, options?: { allowAnyAudience?: boolean }): Promise<TokenPayload>;
+  verifyMfaToken(token: string): Promise<MfaTokenPayload>;
   getJWKS(): Promise<JWKSResponse>;
 }

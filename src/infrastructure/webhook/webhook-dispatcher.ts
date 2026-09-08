@@ -2,44 +2,49 @@
 
 import crypto from 'node:crypto';
 import type { IWebhookDispatcher, WebhookDeliveryResult } from '../../application/ports/webhook-dispatcher.port.js';
+import type { IWebhookUrlValidator } from '../../application/ports/webhook-url-validator.port.js';
 
 export class HttpWebhookDispatcher implements IWebhookDispatcher {
-  constructor(private readonly timeoutMs: number = 5000) {}
+  constructor(
+    private readonly urlValidator: IWebhookUrlValidator,
+    private readonly timeoutMs: number = 5000,
+  ) {}
 
   async dispatch(url: string, secret: string, payload: Record<string, unknown>): Promise<WebhookDeliveryResult> {
     const body = JSON.stringify(payload);
+    const timestamp = new Date().toISOString();
     const signature = crypto
       .createHmac('sha256', secret)
-      .update(body)
+      .update(`${timestamp}.${body}`)
       .digest('hex');
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
 
     try {
+      await this.urlValidator.assertAllowed(url);
       const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'X-Webhook-Signature': `sha256=${signature}`,
-          'X-Webhook-Timestamp': new Date().toISOString(),
+          'X-Webhook-Timestamp': timestamp,
         },
         body,
         signal: controller.signal,
+        redirect: 'error',
       });
-
-      const responseBody = await response.text().catch(() => null);
 
       return {
         success: response.ok,
         responseCode: response.status,
-        responseBody: responseBody?.slice(0, 1000) ?? null,
+        responseBody: null,
       };
-    } catch (error) {
+    } catch {
       return {
         success: false,
         responseCode: null,
-        responseBody: error instanceof Error ? error.message : 'Unknown error',
+        responseBody: 'Delivery failed',
       };
     } finally {
       clearTimeout(timeout);

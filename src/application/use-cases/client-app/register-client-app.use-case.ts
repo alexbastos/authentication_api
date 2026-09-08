@@ -5,6 +5,9 @@ import type { IHasher } from '../../ports/hasher.port.js';
 import { ClientApp } from '../../../domain/entities/client-app.entity.js';
 import { ClientAppAlreadyExistsError } from '../../../domain/errors/domain-errors.js';
 import { v4 as uuidv4 } from 'uuid';
+import type { Role } from '../../../domain/entities/role.entity.js';
+import { assertGlobalAdmin } from '../../services/global-authorization.service.js';
+import { InvalidRedirectUriError } from '../../../domain/errors/domain-errors.js';
 
 export interface RegisterClientAppInput {
   name: string;
@@ -12,17 +15,19 @@ export interface RegisterClientAppInput {
   grantTypes?: string[];
   scopes?: string[];
   tokenEndpointAuth?: string;
+  requesterRole: Role;
 }
 
 export interface RegisterClientAppOutput {
   id: string;
   name: string;
   clientId: string;
-  clientSecret: string; // Returned only at creation time
+  clientSecret?: string; // Returned only once, and only for confidential clients
   redirectUrls: string[];
   grantTypes: string[];
   scopes: string[];
   tokenEndpointAuth: string;
+  isActive: boolean;
   createdAt: Date;
 }
 
@@ -33,6 +38,22 @@ export class RegisterClientAppUseCase {
   ) {}
 
   async execute(input: RegisterClientAppInput): Promise<RegisterClientAppOutput> {
+    assertGlobalAdmin(input.requesterRole);
+    for (const value of input.redirectUrls) {
+      let redirectUrl: URL;
+      try {
+        redirectUrl = new URL(value);
+      } catch {
+        throw new InvalidRedirectUriError();
+      }
+      const isLoopbackHttp = redirectUrl.protocol === 'http:'
+        && (redirectUrl.hostname === '127.0.0.1' || redirectUrl.hostname === '::1');
+      if ((redirectUrl.protocol !== 'https:' && !isLoopbackHttp) || redirectUrl.hash) {
+        throw new InvalidRedirectUriError();
+      }
+    }
+
+    const tokenEndpointAuth = input.tokenEndpointAuth ?? 'client_secret_post';
     // Generate unique client credentials
     const clientId = `app_${uuidv4().replace(/-/g, '')}`;
     const rawSecret = `secret_${uuidv4().replace(/-/g, '')}${uuidv4().replace(/-/g, '')}`;
@@ -48,7 +69,7 @@ export class RegisterClientAppUseCase {
       isActive: true,
       grantTypes: input.grantTypes ?? ['authorization_code'],
       scopes: input.scopes ?? ['openid', 'profile', 'email'],
-      tokenEndpointAuth: input.tokenEndpointAuth ?? 'client_secret_post',
+      tokenEndpointAuth,
       createdAt: now,
       updatedAt: now,
     });
@@ -59,11 +80,12 @@ export class RegisterClientAppUseCase {
       id: createdApp.id,
       name: createdApp.name,
       clientId: createdApp.clientId,
-      clientSecret: rawSecret, // Return raw secret only once
+      ...(tokenEndpointAuth === 'none' ? {} : { clientSecret: rawSecret }),
       redirectUrls: createdApp.redirectUrls as string[],
       grantTypes: createdApp.grantTypes as string[],
       scopes: createdApp.scopes as string[],
       tokenEndpointAuth: createdApp.tokenEndpointAuth,
+      isActive: createdApp.isActive,
       createdAt: createdApp.createdAt,
     };
   }

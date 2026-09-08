@@ -3,17 +3,8 @@
 // No external API calls — fast and privacy-friendly.
 
 import geoip from 'geoip-lite';
-
-export interface GeoLocation {
-  city: string | null;
-  region: string | null;
-  countryCode: string | null;
-  countryName: string | null;
-}
-
-export interface IGeoIpService {
-  lookup(ip: string): GeoLocation | null;
-}
+import type { IGeoIpService } from '../../application/ports/geo-ip.port.js';
+import type { GeoLocation } from '../../domain/entities/session.entity.js';
 
 // ISO 3166-1 country names (subset of most common)
 const COUNTRY_NAMES: Record<string, string> = {

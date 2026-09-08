@@ -8,6 +8,7 @@ import type { ListUsersUseCase } from '../../../application/use-cases/user/list-
 import type { UploadAvatarUseCase } from '../../../application/use-cases/user/upload-avatar.use-case.js';
 import type { DeleteAvatarUseCase } from '../../../application/use-cases/user/delete-avatar.use-case.js';
 import type { UpdateUserBody, UserIdParams, ListUsersQuery } from '../schemas/user.schema.js';
+import type { UploadAvatarBody } from '../schemas/avatar.schema.js';
 import { Role, UserStatus } from '../../../domain/entities/role.entity.js';
 
 export class UserController {
@@ -22,12 +23,20 @@ export class UserController {
   ) {}
 
   async getMe(request: FastifyRequest, reply: FastifyReply) {
-    const result = await this.getUserUC.execute(request.user!.sub);
+    const result = await this.getUserUC.execute({
+      userId: request.user!.sub,
+      requesterId: request.user!.sub,
+      requesterRole: request.user!.role,
+    });
     return reply.status(200).send(result);
   }
 
   async getById(request: FastifyRequest<{ Params: UserIdParams }>, reply: FastifyReply) {
-    const result = await this.getUserUC.execute(request.params.id);
+    const result = await this.getUserUC.execute({
+      userId: request.params.id,
+      requesterId: request.user!.sub,
+      requesterRole: request.user!.role,
+    });
     return reply.status(200).send(result);
   }
 
@@ -35,9 +44,17 @@ export class UserController {
     const result = await this.updateUserUC.execute({
       userId: request.params.id,
       name: request.body.name,
-      email: request.body.email,
-      password: request.body.password,
       role: request.body.role as Role | undefined,
+      phone: request.body.phone,
+      birthDate: request.body.birthDate === undefined
+        ? undefined
+        : request.body.birthDate === null
+          ? null
+          : new Date(`${request.body.birthDate}T00:00:00.000Z`),
+      bio: request.body.bio,
+      locale: request.body.locale,
+      timezone: request.body.timezone,
+      address: request.body.address,
       requesterId: request.user!.sub,
       requesterRole: request.user!.role,
     });
@@ -66,13 +83,14 @@ export class UserController {
         page: request.query.page ?? 1,
         limit: request.query.limit ?? 20,
       },
+      requesterRole: request.user!.role,
     });
 
     return reply.status(200).send(result);
   }
 
-  async uploadAvatar(request: FastifyRequest, reply: FastifyReply) {
-    const file = await request.file();
+  async uploadAvatar(request: FastifyRequest<{ Body: UploadAvatarBody }>, reply: FastifyReply) {
+    const file = request.body?.avatar;
 
     if (!file) {
       return reply.status(400).send({
@@ -103,4 +121,3 @@ export class UserController {
     return reply.status(200).send(result);
   }
 }
-

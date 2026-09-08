@@ -1,5 +1,10 @@
 export type { IHasher } from './hasher.port.js';
-export type { ITokenManager, TokenPayload, JWKSResponse } from './token-manager.port.js';
+export type { ITokenManager, TokenPayload, MfaTokenPayload, JWKSResponse } from './token-manager.port.js';
 export type { ISocialAuthProvider, ISocialAuthProviderRegistry, SocialUserInfo } from './social-auth.port.js';
 export type { ICacheProvider } from './cache.port.js';
 export type { IEmailService } from './email.port.js';
+export type { IWebhookUrlValidator } from './webhook-url-validator.port.js';
+export type { ISecureTokenService } from './secure-token.port.js';
+export type { IGeoIpService } from './geo-ip.port.js';
+export type { IDataProtector } from './data-protector.port.js';
+export type { IAccountSecurityRepository } from './account-security.port.js';

@@ -4,7 +4,7 @@ import type { FastifyInstance, preHandlerHookHandler } from 'fastify';
 import type { AuthController } from '../controllers/auth.controller.js';
 import {
   LoginBodySchema,
-  TokenResponseSchema,
+  LoginResponseSchema,
   RegisterBodySchema,
   RegisterResponseSchema,
   SocialLoginBodySchema,
@@ -50,10 +50,10 @@ export function registerAuthRoutes(
     schema: {
       tags: ['Auth'],
       summary: 'Login with email and password',
-      description: 'Authenticates user credentials and returns JWT access token + refresh token. Requires email verification. Includes brute force protection (5 attempts / 15 min).',
+      description: 'Authenticates the credentials. Returns type=authenticated with final session tokens when MFA is not required, or type=mfa_required with a single-use 5-minute mfaToken and the methods accepted for that attempt. TOTP accounts may use TOTP or EMAIL; EMAIL accounts may use EMAIL. RECOVERY is included only while unused recovery codes remain. The MFA challenge uses HTTP 200 and never includes access or refresh tokens. Requires email verification and includes brute-force protection (5 attempts / 15 min).',
       body: LoginBodySchema,
       response: {
-        200: TokenResponseSchema,
+        200: LoginResponseSchema,
         401: ErrorResponseSchema,
         403: ErrorResponseSchema,
         429: ErrorResponseSchema,
@@ -67,11 +67,13 @@ export function registerAuthRoutes(
     schema: {
       tags: ['Auth', 'Social Login'],
       summary: 'Login with social provider (Google, Apple, etc.)',
-      description: 'Validates the social provider token, finds or creates the user, and returns internal JWT tokens. The social token is discarded after validation.',
+      description: 'Validates the social provider token and returns either a completed session or the same MFA challenge used by password login. No session token is issued before MFA succeeds.',
       body: SocialLoginBodySchema,
       response: {
         200: SocialLoginResponseSchema,
         400: ErrorResponseSchema,
+        401: ErrorResponseSchema,
+        403: ErrorResponseSchema,
       },
     },
     handler: controller.socialLogin.bind(controller),
@@ -115,13 +117,20 @@ export function registerAuthRoutes(
 
   // ─── POST /authentication_api/api/v1/auth/forgot-password ──────────────────────────────
   app.post('/authentication_api/api/v1/auth/forgot-password', {
+    config: {
+      rateLimit: {
+        max: 3,
+        timeWindow: '15 minutes',
+      },
+    },
     schema: {
       tags: ['Auth', 'Password Recovery'],
       summary: 'Request password reset',
-      description: 'Sends a password reset email to the given address. Always returns success to prevent user enumeration. Token expires in 1 hour.',
+      description: 'Sends a password reset email to the given address. Always returns success to prevent user enumeration. Token expires in 1 hour. Limited to 3 requests per 15 minutes per network identity.',
       body: ForgotPasswordBodySchema,
       response: {
         200: MessageResponseSchema,
+        429: ErrorResponseSchema,
       },
     },
     handler: controller.forgotPassword.bind(controller),
@@ -182,7 +191,7 @@ export function registerAuthRoutes(
     schema: {
       tags: ['Auth'],
       summary: 'Logout (revoke tokens)',
-      description: 'Adds the access token JTI to the Redis blocklist and revokes the refresh token. Requires Bearer token in Authorization header.',
+      description: 'Revokes the authenticated logical session, its complete refresh-token family, and the access-token JTI. Requires a valid internal Bearer token in Authorization.',
       body: LogoutBodySchema,
       response: {
         204: { type: 'null', description: 'Successfully logged out' },

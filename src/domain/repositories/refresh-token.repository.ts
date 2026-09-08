@@ -9,5 +9,6 @@ export interface IRefreshTokenRepository {
   revokeById(id: string): Promise<void>;
   revokeAllByUserId(userId: string): Promise<void>;
   revokeAllByFamily(family: string): Promise<void>;
+  rotate(currentTokenId: string, replacement: RefreshToken): Promise<boolean>;
   deleteExpired(): Promise<number>;
 }

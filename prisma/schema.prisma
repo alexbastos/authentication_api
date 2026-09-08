@@ -194,6 +194,9 @@ model Organization {
 
   memberships OrganizationMember[]
   invitations OrgInvitation[]
+  customRoles CustomRole[]
+  userRoles UserRole[]
+  webhookEndpoints WebhookEndpoint[]
 
   @@index([slug])
   @@map("organizations")
@@ -259,6 +262,7 @@ model CustomRole {
 
   permissions RolePermission[]
   userRoles   UserRole[]
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@unique([name, organizationId])
   @@index([organizationId])
@@ -283,6 +287,7 @@ model UserRole {
 
   user User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   role CustomRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@id([userId, roleId])
   @@index([userId])
@@ -325,6 +330,7 @@ model WebhookEndpoint {
   updatedAt      DateTime       @updatedAt @map("updated_at")
 
   deliveries WebhookDelivery[]
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId])
   @@map("webhook_endpoints")

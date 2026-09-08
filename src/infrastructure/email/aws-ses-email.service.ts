@@ -51,8 +51,8 @@ export class AwsSesEmailService implements IEmailService {
 
     try {
       await this.client.send(command);
-    } catch (error) {
-      console.error('[AWS SES] Falha ao enviar e-mail de verificação', error);
+    } catch {
+      console.error('[AWS SES] Falha ao enviar e-mail de verificação');
       throw new Error('Falha ao enviar e-mail. Verifique o provedor.');
     }
   }
@@ -92,8 +92,8 @@ export class AwsSesEmailService implements IEmailService {
 
     try {
       await this.client.send(command);
-    } catch (error) {
-      console.error('[AWS SES] Falha ao enviar e-mail de redefinição de senha', error);
+    } catch {
+      console.error('[AWS SES] Falha ao enviar e-mail de redefinição de senha');
       throw new Error('Falha ao enviar e-mail. Verifique o provedor.');
     }
   }
@@ -130,8 +130,8 @@ export class AwsSesEmailService implements IEmailService {
 
     try {
       await this.client.send(command);
-    } catch (error) {
-      console.error('[AWS SES] Falha ao enviar código MFA', error);
+    } catch {
+      console.error('[AWS SES] Falha ao enviar código MFA');
       throw new Error('Falha ao enviar e-mail. Verifique o provedor.');
     }
   }

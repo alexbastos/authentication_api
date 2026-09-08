@@ -10,6 +10,9 @@ import { v4 as uuidv4 } from 'uuid';
 export interface DispatchEventInput {
   event: WebhookEvent;
   payload: Record<string, unknown>;
+  /** Explicit tenant boundary. Omit for global events. */
+  organizationId?: string;
+  endpointId?: string;
 }
 
 export class DispatchEventUseCase {
@@ -20,7 +23,12 @@ export class DispatchEventUseCase {
   ) {}
 
   async execute(input: DispatchEventInput): Promise<void> {
-    const endpoints = await this.webhookRepository.findActiveEndpointsByEvent(input.event);
+    const selectedEndpoint = input.endpointId
+      ? await this.webhookRepository.findEndpointById(input.endpointId)
+      : null;
+    const endpoints = input.endpointId
+      ? (selectedEndpoint?.isActive ? [selectedEndpoint] : [])
+      : await this.webhookRepository.findActiveEndpointsByEvent(input.event, input.organizationId);
 
     const deliveryPromises = endpoints.map(async (endpoint) => {
       const delivery = new WebhookDelivery({

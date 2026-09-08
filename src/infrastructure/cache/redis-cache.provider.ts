@@ -6,12 +6,13 @@ import type { ICacheProvider } from '../../application/ports/cache.port.js';
 export class RedisCacheProvider implements ICacheProvider {
   private client: Redis;
 
-  constructor(config: { host: string; port: number; password?: string; db?: number }) {
+  constructor(config: { host: string; port: number; password?: string; db?: number; tls?: boolean }) {
     this.client = new Redis({
       host: config.host,
       port: config.port,
       password: config.password || undefined,
       db: config.db ?? 0,
+      ...(config.tls ? { tls: {} } : {}),
       retryStrategy: (times) => {
         const delay = Math.min(times * 50, 2000);
         return delay;
@@ -36,6 +37,25 @@ export class RedisCacheProvider implements ICacheProvider {
     return this.client.get(key);
   }
 
+  async getAndDelete(key: string): Promise<string | null> {
+    return this.client.getdel(key);
+  }
+
+  async consumeIfValueMatches(key: string, expectedValue: string): Promise<boolean> {
+    const result = await this.client.eval(
+      "if redis.call('GET', KEYS[1]) == ARGV[1] then return redis.call('DEL', KEYS[1]) else return 0 end",
+      1,
+      key,
+      expectedValue,
+    );
+    return result === 1;
+  }
+
+  async setIfNotExists(key: string, value: string, ttlSeconds: number): Promise<boolean> {
+    const result = await this.client.set(key, value, 'EX', ttlSeconds, 'NX');
+    return result === 'OK';
+  }
+
   async del(key: string): Promise<void> {
     await this.client.del(key);
   }
@@ -46,12 +66,13 @@ export class RedisCacheProvider implements ICacheProvider {
   }
 
   async increment(key: string, ttlSeconds: number): Promise<number> {
-    const count = await this.client.incr(key);
-    // Set TTL only when it's a new key (count === 1) to avoid resetting the window
-    if (count === 1) {
-      await this.client.expire(key, ttlSeconds);
-    }
-    return count;
+    const count = await this.client.eval(
+      "local value = redis.call('INCR', KEYS[1]); if value == 1 then redis.call('EXPIRE', KEYS[1], ARGV[1]); end; return value",
+      1,
+      key,
+      ttlSeconds,
+    );
+    return Number(count);
   }
 
   async disconnect(): Promise<void> {

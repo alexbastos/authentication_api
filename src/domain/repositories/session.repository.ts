@@ -13,4 +13,5 @@ export interface ISessionRepository {
   }): Promise<void>;
   revokeById(id: string): Promise<void>;
   revokeByFamily(family: string): Promise<void>;
+  revokeAllByUserId(userId: string): Promise<void>;
 }

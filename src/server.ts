@@ -25,7 +25,9 @@ async function main() {
   try {
     await app.listen({ port: env.PORT, host: env.HOST });
     app.log.info(`🚀 Server running at http://${env.HOST}:${env.PORT}`);
-    app.log.info(`📚 Swagger UI at http://localhost:${env.PORT}/docs`);
+    if (env.NODE_ENV !== 'production' || env.ENABLE_SWAGGER) {
+      app.log.info(`📚 Swagger UI at http://localhost:${env.PORT}/docs/authentication_api`);
+    }
     app.log.info(`🔑 JWKS at http://localhost:${env.PORT}/authentication_api/api/v1/auth/.well-known/jwks.json`);
   } catch (err) {
     app.log.error(err, 'Failed to start server');
@@ -35,12 +37,14 @@ async function main() {
 }
 
 // ─── Catch unhandled errors to prevent silent crashes ─────────────────────
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('[FATAL] Unhandled Rejection at:', promise, 'reason:', reason);
+process.on('unhandledRejection', () => {
+  // Do not serialize arbitrary rejection values: they may contain credentials.
+  console.error('[FATAL] Unhandled promise rejection');
+  process.exit(1);
 });
 
-process.on('uncaughtException', (error) => {
-  console.error('[FATAL] Uncaught Exception:', error);
+process.on('uncaughtException', () => {
+  console.error('[FATAL] Uncaught exception');
   process.exit(1);
 });
 

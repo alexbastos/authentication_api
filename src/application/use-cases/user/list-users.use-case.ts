@@ -6,10 +6,13 @@ import type {
   PaginationParams,
   PaginatedResult,
 } from '../../../domain/repositories/user.repository.js';
+import type { Role } from '../../../domain/entities/role.entity.js';
+import { assertGlobalAdmin } from '../../services/global-authorization.service.js';
 
 export interface ListUsersInput {
   filters: ListUsersFilters;
   pagination: PaginationParams;
+  requesterRole: Role;
 }
 
 export interface ListUsersUserOutput {
@@ -27,6 +30,7 @@ export class ListUsersUseCase {
   constructor(private readonly userRepository: IUserRepository) {}
 
   async execute(input: ListUsersInput): Promise<ListUsersOutput> {
+    assertGlobalAdmin(input.requesterRole);
     const result = await this.userRepository.list(input.filters, input.pagination);
 
     return {

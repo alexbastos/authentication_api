@@ -193,6 +193,12 @@ export class CannotRemoveOwnerError extends DomainError {
   }
 }
 
+export class CannotAssignOwnerError extends DomainError {
+  constructor() {
+    super('The OWNER role cannot be assigned through invitations or role updates', 'CANNOT_ASSIGN_OWNER');
+  }
+}
+
 export class InvitationNotFoundError extends DomainError {
   constructor() {
     super('Invitation not found or invalid token', 'INVITATION_NOT_FOUND');
@@ -208,6 +214,12 @@ export class InvitationExpiredError extends DomainError {
 export class InvitationAlreadyAcceptedError extends DomainError {
   constructor() {
     super('This invitation has already been accepted', 'INVITATION_ALREADY_ACCEPTED');
+  }
+}
+
+export class InvitationEmailMismatchError extends DomainError {
+  constructor() {
+    super('This invitation was issued to a different account', 'INVITATION_EMAIL_MISMATCH');
   }
 }
 
@@ -257,11 +269,29 @@ export class WebhookNotFoundError extends DomainError {
   }
 }
 
+export class InvalidWebhookUrlError extends DomainError {
+  constructor() {
+    super('Webhook URL must use HTTPS and resolve only to public network addresses', 'INVALID_WEBHOOK_URL');
+  }
+}
+
 // ─── OAuth Errors ───────────────────────────────────────────────────────
 
 export class InvalidGrantError extends DomainError {
   constructor(details: string) {
     super(`Invalid grant: ${details}`, 'INVALID_GRANT');
+  }
+}
+
+export class InvalidOAuthClientError extends DomainError {
+  constructor() {
+    super('OAuth client authentication failed', 'INVALID_CLIENT');
+  }
+}
+
+export class InvalidOAuthStateError extends DomainError {
+  constructor() {
+    super('A sufficiently random OAuth state value is required', 'INVALID_OAUTH_STATE');
   }
 }
 
@@ -274,6 +304,12 @@ export class InvalidRedirectUriError extends DomainError {
 export class InvalidCodeChallengeError extends DomainError {
   constructor() {
     super('Invalid or missing PKCE code challenge', 'INVALID_CODE_CHALLENGE');
+  }
+}
+
+export class InvalidScopeError extends DomainError {
+  constructor() {
+    super('One or more requested scopes are not allowed for this client', 'INVALID_SCOPE');
   }
 }
 
@@ -297,18 +333,39 @@ export class AuthorizationCodeExpiredError extends DomainError {
 
 // ─── MFA Errors ─────────────────────────────────────────────────────────
 
-export class MfaRequiredError extends DomainError {
-  constructor(
-    public readonly mfaToken: string,
-    public readonly methods: string[],
-  ) {
-    super('Two-factor authentication is required', 'MFA_REQUIRED');
+export class InvalidMfaCodeError extends DomainError {
+  constructor() {
+    super('Invalid or expired MFA code', 'MFA_CODE_INVALID');
   }
 }
 
-export class InvalidMfaCodeError extends DomainError {
+export class MfaTokenInvalidError extends DomainError {
   constructor() {
-    super('Invalid or expired MFA code', 'INVALID_MFA_CODE');
+    super('Invalid or already used MFA token', 'MFA_TOKEN_INVALID');
+  }
+}
+
+export class MfaTokenExpiredError extends DomainError {
+  constructor() {
+    super('MFA token has expired', 'MFA_TOKEN_EXPIRED');
+  }
+}
+
+export class MfaMethodNotAllowedError extends DomainError {
+  constructor() {
+    super('MFA method is not allowed for this challenge', 'MFA_METHOD_NOT_ALLOWED');
+  }
+}
+
+export class MfaAttemptsExceededError extends DomainError {
+  constructor() {
+    super('Maximum MFA verification attempts exceeded', 'MFA_ATTEMPTS_EXCEEDED');
+  }
+}
+
+export class MfaRateLimitedError extends DomainError {
+  constructor() {
+    super('Please wait before requesting another MFA code', 'MFA_RATE_LIMITED');
   }
 }
 
@@ -326,7 +383,7 @@ export class MfaNotEnabledError extends DomainError {
 
 export class MfaSetupIncompleteError extends DomainError {
   constructor() {
-    super('MFA setup is not complete. Please verify your code first.', 'MFA_SETUP_INCOMPLETE');
+    super('MFA setup has not been started or is no longer pending', 'MFA_SETUP_NOT_STARTED');
   }
 }
 
@@ -349,4 +406,3 @@ export class InvalidFileContentError extends DomainError {
     super('File content does not match the declared type', 'INVALID_FILE_CONTENT');
   }
 }
-

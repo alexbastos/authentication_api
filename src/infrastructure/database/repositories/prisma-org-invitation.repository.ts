@@ -55,10 +55,38 @@ export class PrismaOrgInvitationRepository implements IOrgInvitationRepository {
     return records.map((r) => this.toDomain(r));
   }
 
-  async markAccepted(id: string): Promise<void> {
-    await this.prisma.orgInvitation.update({
-      where: { id },
-      data: { acceptedAt: new Date() },
+  async acceptAndAddMember(input: {
+    invitationId: string;
+    organizationId: string;
+    userId: string;
+    role: OrgRole;
+  }): Promise<boolean> {
+    return this.prisma.$transaction(async (tx) => {
+      const consumed = await tx.orgInvitation.updateMany({
+        where: {
+          id: input.invitationId,
+          acceptedAt: null,
+          expiresAt: { gt: new Date() },
+        },
+        data: { acceptedAt: new Date() },
+      });
+      if (consumed.count !== 1) return false;
+
+      await tx.organizationMember.upsert({
+        where: {
+          userId_organizationId: {
+            userId: input.userId,
+            organizationId: input.organizationId,
+          },
+        },
+        create: {
+          userId: input.userId,
+          organizationId: input.organizationId,
+          role: input.role as any,
+        },
+        update: {},
+      });
+      return true;
     });
   }
 

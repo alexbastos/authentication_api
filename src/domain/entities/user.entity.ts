@@ -35,6 +35,10 @@ export interface UserProfile {
   address: UserAddress;
 }
 
+export type UserProfileUpdate = Omit<Partial<UserProfile>, 'address'> & {
+  address?: Partial<UserAddress>;
+};
+
 export interface UserProps {
   id: string;
   name: string;
@@ -85,7 +89,7 @@ export class User {
   constructor(props: UserProps) {
     this.id = props.id;
     this._name = props.name;
-    this._email = props.email;
+    this._email = props.email.toLowerCase().trim();
     this._passwordHash = props.passwordHash;
     this._emailVerified = props.emailVerified;
     this._role = props.role;
@@ -186,7 +190,8 @@ export class User {
   }
 
   updateEmail(email: string): void {
-    this._email = email;
+    this._email = email.toLowerCase().trim();
+    this._emailVerified = false;
     this.touch();
   }
 
@@ -217,7 +222,7 @@ export class User {
     this.touch();
   }
 
-  updateProfile(profile: Partial<UserProfile>): void {
+  updateProfile(profile: UserProfileUpdate): void {
     if (profile.avatarUrl !== undefined) this._avatarUrl = profile.avatarUrl;
     if (profile.phone !== undefined) this._phone = profile.phone;
     if (profile.birthDate !== undefined) this._birthDate = profile.birthDate;
@@ -304,4 +309,3 @@ export class User {
     };
   }
 }
-

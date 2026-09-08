@@ -164,9 +164,7 @@ docker-compose up -d postgres redis
 ### 6. Execute as migrações do banco
 
 ```bash
-npx prisma migrate dev --name init
-# ou use o script SQL diretamente:
-# psql -U auth_user -d auth_db -f scripts/sql/001_create_tables.sql
+npm run db:migrate
 ```
 
 ### 7. Gere o Prisma Client
@@ -183,7 +181,9 @@ npm run dev
 
 ### 9. Acesse o Swagger UI
 
-Abra no navegador: **http://localhost:3000/docs**
+Em desenvolvimento, abra **http://localhost:3000/docs/authentication_api**. Em
+produção, a documentação fica desabilitada por padrão e só é publicada quando
+`ENABLE_SWAGGER=true`.
 
 ---
 
@@ -197,6 +197,7 @@ Todas as variáveis de ambiente estão documentadas no arquivo `.env.example`:
 | `HOST` | Host de escuta | `0.0.0.0` |
 | `NODE_ENV` | Ambiente (development/production/test) | `development` |
 | `DATABASE_URL` | Connection string PostgreSQL | - |
+| `DATABASE_URL_DOCKER` | Connection string usada pelos containers (`postgres` como host) | - |
 | `REDIS_HOST` | Host do Redis | `localhost` |
 | `REDIS_PORT` | Porta do Redis | `6379` |
 | `JWT_PRIVATE_KEY_PATH` | Caminho da chave privada RSA | `./keys/private.pem` |
@@ -245,6 +246,37 @@ Todas as variáveis de ambiente estão documentadas no arquivo `.env.example`:
 | `POST` | `/api/v1/auth/mfa/recovery-codes/regenerate` | Gerar novos códigos de recuperação | ✅ Bearer |
 | `POST` | `/api/v1/auth/mfa/email-code` | Enviar código MFA por E-mail | ❌ (Usa `mfaToken`) |
 
+O login sempre responde `200 OK` quando as credenciais estão corretas e usa o campo `type` como discriminador:
+
+```json
+{
+  "type": "authenticated",
+  "accessToken": "jwt-access-token",
+  "refreshToken": "refresh-token",
+  "user": {
+    "id": "user-id",
+    "name": "Nome",
+    "email": "usuario@email.com",
+    "role": "USER",
+    "emailVerified": true
+  }
+}
+```
+
+```json
+{
+  "type": "mfa_required",
+  "mfaToken": "temporary-mfa-token",
+  "availableMethods": ["TOTP", "EMAIL", "RECOVERY"]
+}
+```
+
+O `mfaToken` é válido por 5 minutos, pertence a uma única tentativa, não funciona como Bearer token e é invalidado após o sucesso ou após 5 códigos inválidos. Contas TOTP podem usar `TOTP` ou `EMAIL`; contas EMAIL usam `EMAIL`; `RECOVERY` só é anunciado enquanto existirem códigos não utilizados. Para solicitar o código por e-mail durante o login, envie o `mfaToken` a `/auth/mfa/email-code`. Para desativar MFA ou regenerar códigos de uma conta EMAIL, autentique com Bearer, envie `{}` a esse endpoint e depois informe `method: "EMAIL"` na operação.
+
+O setup TOTP sempre retorna `secret` e o QR code como Data URL PNG. O setup EMAIL envia o código automaticamente. Um novo setup substitui qualquer configuração pendente. A ativação e a regeneração retornam exatamente 10 códigos de recuperação no formato `XXXXXXXX-XXXXXXXX`; eles são exibidos uma única vez e só uma nova regeneração produz outra lista.
+
+Erros MFA possuem códigos estáveis: `MFA_TOKEN_INVALID` e `MFA_TOKEN_EXPIRED` (`401`), `MFA_CODE_INVALID` (`401`), `MFA_METHOD_NOT_ALLOWED`, `MFA_NOT_ENABLED` e `MFA_SETUP_NOT_STARTED` (`400`), `MFA_ALREADY_ENABLED` (`409`), `MFA_ATTEMPTS_EXCEEDED` e `MFA_RATE_LIMITED` (`429`). O OpenAPI em `/docs/authentication_api/` contém exemplos de todas as etapas.
+
 ### Users (CRUD)
 
 | Método | Endpoint | Descrição | Auth |
@@ -256,6 +288,8 @@ Todas as variáveis de ambiente estão documentadas no arquivo `.env.example`:
 | `DELETE` | `/api/v1/users/:id` | Desativar usuário (soft delete) | ✅ Bearer |
 | `POST` | `/api/v1/users/me/avatar` | Upload de avatar (multipart, PNG/JPEG, até 5 MB) | ✅ Bearer |
 | `DELETE` | `/api/v1/users/me/avatar` | Remover avatar do perfil | ✅ Bearer |
+
+O upload usa `multipart/form-data` com o campo obrigatório `avatar`. A URL retornada é pré-assinada e válida por 7 dias; um novo `GET /api/v1/users/me` gera uma URL renovada para avatares armazenados internamente. A remoção é idempotente e retorna `200` mesmo quando não há avatar. O avatar não pode ser alterado pelo `PUT /api/v1/users/:id`.
 
 ### Controle de Sessão e Segurança
 
@@ -311,17 +345,17 @@ Todas as variáveis de ambiente estão documentadas no arquivo `.env.example`:
 
 | Método | Endpoint | Descrição | Auth |
 |:---|:---|:---|:---|
-| `GET` | `/api/v1/oauth/authorize` | Authorization Endpoint (Geração de Code) | ✅ Bearer |
-| `POST` | `/api/v1/oauth/consent` | Salvar Consentimento de Scopes | ✅ Bearer |
-| `POST` | `/api/v1/oauth/token` | Token Endpoint (Troca de Code por JWT) | ❌ (Client Auth) |
-| `GET/POST`| `/api/v1/oauth/userinfo` | OIDC UserInfo Endpoint | ✅ Bearer |
+| `GET` | `/oauth/authorize` | Authorization Endpoint (Geração de Code) | ✅ sessão Bearer interna |
+| `POST` | `/oauth/consent` | Salvar Consentimento de Scopes | ✅ sessão Bearer interna |
+| `POST` | `/oauth/token` | Token Endpoint (Troca de Code por JWT) | ❌ (Client Auth) |
+| `GET/POST`| `/oauth/userinfo` | OIDC UserInfo Endpoint | ✅ access token OAuth |
 
 ### Outros
 
 | Método | Endpoint | Descrição |
 |:---|:---|:---|
-| `GET` | `/health` | Health check |
-| `GET` | `/docs` | Swagger UI |
+| `GET` | `/health/authentication_api` | Readiness de PostgreSQL e Redis |
+| `GET` | `/docs/authentication_api` | Swagger UI (desabilitado por padrão em produção) |
 
 ---
 
@@ -450,41 +484,25 @@ No AWS API Gateway, configure um **Lambda Authorizer** que:
 
 ## 🗄 Banco de Dados
 
-### Scripts SQL
+### Migrações Prisma
 
-Os scripts de criação de tabelas estão em `scripts/sql/`:
-
-| Arquivo | Descrição |
-|:---|:---|
-| `001_create_tables.sql` | Criação de todas as tabelas, índices e triggers |
-| `002_seed_data.sql` | Dados iniciais (admin + client app de dev) |
-| `003_cleanup_expired_tokens.sql` | Limpeza de tokens expirados (cron job) |
-
-### Executar scripts SQL manualmente
-
-```bash
-# Criar tabelas
-psql -U auth_user -d auth_db -f scripts/sql/001_create_tables.sql
-
-# Popular com dados iniciais
-psql -U auth_user -d auth_db -f scripts/sql/002_seed_data.sql
-
-# Limpar tokens expirados (rodar periodicamente)
-psql -U auth_user -d auth_db -f scripts/sql/003_cleanup_expired_tokens.sql
-```
-
-### Usar Prisma Migrations (recomendado)
+As migrações versionadas em `prisma/migrations/` são a fonte de verdade do
+schema e devem ser aplicadas em todos os ambientes:
 
 ```bash
 # Criar e aplicar migration
-npx prisma migrate dev --name init
+npm run db:migrate
 
 # Aplicar migrations em produção
-npx prisma migrate deploy
+npm run db:migrate:prod
 
 # Visualizar banco no Prisma Studio
 npx prisma studio
 ```
+
+Os arquivos em `scripts/sql/` são legados e não devem ser usados para criar um
+banco novo. Em particular, o seed histórico contém somente credenciais de
+desenvolvimento e não é executado pelo Compose.
 
 ### Modelo de Dados
 
@@ -527,6 +545,9 @@ npx prisma studio
 # Subir tudo (app + postgres + redis)
 docker-compose up -d
 
+# O serviço migrate aplica prisma/migrations antes de liberar a API
+docker-compose logs migrate
+
 # Subir apenas banco e redis (para dev local)
 docker-compose up -d postgres redis
 
@@ -558,7 +579,7 @@ docker build -t authentication-api -f docker/Dockerfile .
    - Memory: 512 MB ou 1024 MB
    - Port Mapping: 3000
    - Environment variables via AWS Secrets Manager
-   - Health check: `GET /health`
+   - Health check: `GET /health/authentication_api`
 
 3. **Infraestrutura AWS recomendada:**
    - **Amazon RDS** PostgreSQL 15 (Multi-AZ para produção)

@@ -3,6 +3,7 @@
 import { randomUUID } from 'node:crypto';
 import type { IUserRepository } from '../../../domain/repositories/user.repository.js';
 import type { IStorageService } from '../../ports/storage.port.js';
+import { AVATAR_URL_TTL_SECONDS } from '../../services/avatar-url.service.js';
 import {
   UserNotFoundError,
   InvalidFileTypeError,
@@ -64,27 +65,27 @@ export class UploadAvatarUseCase {
       throw new UserNotFoundError(userId);
     }
 
-    // 5. Delete previous avatar if exists
+    // 5. Keep the previous reference until the replacement is durable.
     const currentAvatarKey = user.profile.avatarUrl;
-    if (currentAvatarKey && !currentAvatarKey.startsWith('http')) {
-      try {
-        await this.storageService.delete(currentAvatarKey);
-      } catch {
-        // If deletion fails, log but don't block the new upload
-      }
-    }
-
-    // 6. Upload new avatar
     const extension = MIME_TO_EXTENSION[mimeType] ?? 'jpg';
     const key = `avatars/${userId}/${randomUUID()}.${extension}`;
     await this.storageService.upload(key, buffer, mimeType);
 
-    // 7. Update user profile with the S3 key
-    user.updateProfile({ avatarUrl: key });
-    await this.userRepository.update(user);
+    // 6. Persist the new reference only after both upload and URL generation work.
+    let avatarUrl: string;
+    try {
+      avatarUrl = await this.storageService.getSignedUrl(key, AVATAR_URL_TTL_SECONDS);
+      user.updateProfile({ avatarUrl: key });
+      await this.userRepository.update(user);
+    } catch (error) {
+      await this.storageService.delete(key).catch(() => undefined);
+      throw error;
+    }
 
-    // 8. Generate signed URL for response
-    const avatarUrl = await this.storageService.getSignedUrl(key);
+    // 7. The old object is now unreferenced and can be removed best-effort.
+    if (currentAvatarKey && !currentAvatarKey.startsWith('http')) {
+      await this.storageService.delete(currentAvatarKey).catch(() => undefined);
+    }
 
     return {
       avatarUrl,

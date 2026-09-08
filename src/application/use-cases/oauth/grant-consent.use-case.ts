@@ -2,7 +2,7 @@
 
 import type { IOAuthConsentRepository } from '../../../domain/repositories/oauth-consent.repository.js';
 import type { IClientAppRepository } from '../../../domain/repositories/client-app.repository.js';
-import { ClientAppNotFoundError } from '../../../domain/errors/domain-errors.js';
+import { ClientAppNotFoundError, InvalidScopeError } from '../../../domain/errors/domain-errors.js';
 import { OAuthConsent } from '../../../domain/entities/oauth-consent.entity.js';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -27,7 +27,7 @@ export class GrantConsentUseCase {
     // Validate scopes against client app allowed scopes
     const invalidScopes = input.scopes.filter((s) => !clientApp.scopes.includes(s));
     if (invalidScopes.length > 0) {
-      throw new Error(`Invalid scopes requested: ${invalidScopes.join(', ')}`);
+      throw new InvalidScopeError();
     }
 
     const consent = await this.consentRepository.findByUserAndClient(input.userId, clientApp.id);

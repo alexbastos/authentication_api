@@ -94,6 +94,13 @@ export class PrismaSessionRepository implements ISessionRepository {
     });
   }
 
+  async revokeAllByUserId(userId: string): Promise<void> {
+    await this.prisma.session.updateMany({
+      where: { userId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+  }
+
   private toDomain(record: any): Session {
     const location: GeoLocation | null =
       record.locationCity || record.locationRegion || record.locationCountryCode

@@ -5,7 +5,7 @@ FROM node:22-alpine AS deps
 WORKDIR /app
 
 COPY package.json package-lock.json* ./
-RUN npm ci --frozen-lockfile 2>/dev/null || npm install
+RUN npm ci
 
 # ─── Stage 2: Builder ─────────────────────────────────────────────────────
 FROM node:22-alpine AS builder
@@ -29,10 +29,18 @@ RUN npx prisma generate
 # Build TypeScript (prebuild gera o version.json)
 RUN npm run build
 
-# Prune dev dependencies
-RUN npm prune --production
+# ─── Stage 3: Database migrator ────────────────────────────────────────────
+FROM builder AS migrator
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nodejs
+USER nodejs
+CMD ["npx", "prisma", "migrate", "deploy"]
 
-# ─── Stage 3: Runner ──────────────────────────────────────────────────────
+# ─── Stage 4: Production dependencies ─────────────────────────────────────
+FROM builder AS production-deps
+RUN npm prune --omit=dev --omit=peer
+
+# ─── Stage 5: Runner ──────────────────────────────────────────────────────
 FROM node:22-alpine AS runner
 WORKDIR /app
 
@@ -44,7 +52,7 @@ RUN addgroup --system --gid 1001 nodejs && \
 
 # Copy necessary files
 COPY --from=builder --chown=nodejs:nodejs /app/package.json ./package.json
-COPY --from=builder --chown=nodejs:nodejs /app/node_modules ./node_modules
+COPY --from=production-deps --chown=nodejs:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=nodejs:nodejs /app/dist ./dist
 COPY --from=builder --chown=nodejs:nodejs /app/prisma ./prisma
 COPY --from=builder --chown=nodejs:nodejs /app/node_modules/.prisma ./node_modules/.prisma

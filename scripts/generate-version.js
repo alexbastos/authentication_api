@@ -1,10 +1,6 @@
-import { execSync } from 'node:child_process';
-import { writeFileSync, existsSync, mkdirSync } from 'node:fs';
-import { resolve, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+const { execSync } = require('node:child_process');
+const { writeFileSync, existsSync, mkdirSync } = require('node:fs');
+const { resolve, dirname } = require('node:path');
 
 function runGitCommand(command) {
   try {
@@ -20,16 +16,17 @@ function generateVersion() {
 
   // Lê do git se disponível (dev local), senão lê das env vars (Docker build)
   const branch =
-    (isGitRepo ? runGitCommand('git rev-parse --abbrev-ref HEAD') : null) ??
     process.env.GIT_BRANCH ??
+    (isGitRepo ? runGitCommand('git rev-parse --abbrev-ref HEAD') : null) ??
     'unknown';
 
   const commit =
-    (isGitRepo ? runGitCommand('git rev-parse --short HEAD') : null) ??
     process.env.GIT_COMMIT ??
+    (isGitRepo ? runGitCommand('git rev-parse --short HEAD') : null) ??
     'unknown';
 
-  const date = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+  const date = process.env.BUILD_DATE
+    || new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
 
   const versionInfo = { branch, commit, date };
 

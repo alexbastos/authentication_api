@@ -3,9 +3,11 @@
 import type { IUserRepository } from '../../../domain/repositories/user.repository.js';
 import type { IMfaRepository } from '../../../domain/repositories/mfa.repository.js';
 import type { ValidateMfaCodeUseCase } from './validate-mfa-code.use-case.js';
+import type { MfaValidationMethod } from './validate-mfa-code.use-case.js';
 import {
   UserNotFoundError,
   MfaNotEnabledError,
+  MfaMethodNotAllowedError,
 } from '../../../domain/errors/domain-errors.js';
 import { WebhookEvent } from '../../../domain/entities/webhook.entity.js';
 import type { DispatchEventUseCase } from '../webhook/dispatch-event.use-case.js';
@@ -13,6 +15,7 @@ import type { DispatchEventUseCase } from '../webhook/dispatch-event.use-case.js
 export interface DisableMfaInput {
   userId: string;
   code: string;
+  method: MfaValidationMethod;
 }
 
 export interface DisableMfaOutput {
@@ -35,27 +38,17 @@ export class DisableMfaUseCase {
       throw new MfaNotEnabledError();
     }
 
-    // Require valid TOTP or recovery code to disable
+    if (input.method !== 'RECOVERY' && input.method !== user.mfaMethod) {
+      throw new MfaMethodNotAllowedError();
+    }
+
     await this.validateMfaCodeUC.execute({
       userId: user.id,
       code: input.code,
-      method: 'TOTP',
-    }).catch(async () => {
-      // If TOTP fails, try as recovery code
-      await this.validateMfaCodeUC.execute({
-        userId: user.id,
-        code: input.code,
-        method: 'RECOVERY',
-      });
+      method: input.method,
     });
 
-    // Disable MFA
-    user.disableMfa();
-    await this.userRepository.update(user);
-
-    // Clean up MFA data
-    await this.mfaRepository.deleteSecretByUserId(user.id);
-    await this.mfaRepository.deleteRecoveryCodesByUserId(user.id);
+    await this.mfaRepository.disableAndRevokeSessions(user.id);
 
     // Dispatch webhook event
     if (this.dispatchEventUC) {
@@ -66,7 +59,7 @@ export class DisableMfaUseCase {
           email: user.email,
           timestamp: new Date().toISOString(),
         },
-      }).catch(console.error);
+      }).catch(() => undefined);
     }
 
     return {

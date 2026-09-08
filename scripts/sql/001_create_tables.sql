@@ -1,16 +1,15 @@
 -- ============================================================================
 -- Authentication API — Database Schema
 -- ============================================================================
--- Script de criação das tabelas para o microserviço de autenticação.
--- Execute este script em um banco PostgreSQL limpo.
---
--- Ordem de execução:
---   1. Criar o banco de dados (se necessário)
---   2. Executar este script
---
--- Exemplo:
---   psql -U auth_user -d auth_db -f 001_create_tables.sql
+-- DEPRECATED. This historical snapshot is deliberately blocked because it no
+-- longer represents the application schema. Use `prisma migrate deploy`.
 -- ============================================================================
+
+\set ON_ERROR_STOP on
+DO $$
+BEGIN
+    RAISE EXCEPTION 'Deprecated bootstrap script. Apply the versioned Prisma migrations instead.';
+END $$;
 
 -- ─── Extensions ─────────────────────────────────────────────────────────────
 CREATE EXTENSION IF NOT EXISTS "pgcrypto"; -- Para gen_random_uuid() se necessário

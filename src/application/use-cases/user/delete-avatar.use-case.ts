@@ -27,19 +27,23 @@ export class DeleteAvatarUseCase {
       throw new UserNotFoundError(userId);
     }
 
-    // 2. Delete avatar from S3 if exists
+    // 2. Clear the database reference first so a storage failure cannot keep a
+    // broken avatar in the public profile.
     const currentAvatarKey = user.profile.avatarUrl;
-    if (currentAvatarKey && !currentAvatarKey.startsWith('http')) {
-      try {
-        await this.storageService.delete(currentAvatarKey);
-      } catch {
-        // If deletion fails, still clear the reference
-      }
+    if (!currentAvatarKey) {
+      return {
+        message: 'Avatar removed successfully',
+      };
     }
 
-    // 3. Clear avatar URL from profile
     user.updateProfile({ avatarUrl: null });
     await this.userRepository.update(user);
+
+    // 3. Remove the now-unreferenced object best-effort. Orphans can be cleaned
+    // by bucket lifecycle policy without making the API operation fail.
+    if (!currentAvatarKey.startsWith('http')) {
+      await this.storageService.delete(currentAvatarKey).catch(() => undefined);
+    }
 
     return {
       message: 'Avatar removed successfully',

@@ -6,10 +6,8 @@ import type { IVerificationTokenRepository } from '../../../domain/repositories/
 import type { IEmailService } from '../../ports/email.port.js';
 import { User } from '../../../domain/entities/user.entity.js';
 import { Role, UserStatus } from '../../../domain/entities/role.entity.js';
-import {
-  UserAlreadyExistsError,
-  WeakPasswordError,
-} from '../../../domain/errors/domain-errors.js';
+import { UserAlreadyExistsError } from '../../../domain/errors/domain-errors.js';
+import { assertStrongPassword } from '../../services/password-policy.service.js';
 import { SendVerificationEmailUseCase } from '../auth/send-verification-email.use-case.js';
 import { v4 as uuidv4 } from 'uuid';
 import { WebhookEvent } from '../../../domain/entities/webhook.entity.js';
@@ -19,7 +17,6 @@ export interface RegisterUserInput {
   name: string;
   email: string;
   password: string;
-  role?: Role;
   appUrl: string;
   verificationTokenExpiryHours: number;
 }
@@ -45,7 +42,7 @@ export class RegisterUserUseCase {
 
   async execute(input: RegisterUserInput): Promise<RegisterUserOutput> {
     // 1. Validate password complexity
-    this.validatePasswordComplexity(input.password);
+    assertStrongPassword(input.password);
 
     // 2. Check for duplicate email
     const existingUser = await this.userRepository.findByEmail(input.email);
@@ -64,7 +61,7 @@ export class RegisterUserUseCase {
       email: input.email.toLowerCase().trim(),
       passwordHash,
       emailVerified: false,
-      role: input.role ?? Role.USER,
+      role: Role.USER,
       status: UserStatus.ACTIVE,
       socialAccounts: [],
       createdAt: now,
@@ -86,8 +83,8 @@ export class RegisterUserUseCase {
           appUrl: input.appUrl,
           expiryHours: input.verificationTokenExpiryHours,
         });
-      } catch (err) {
-        console.error('[RegisterUser] Failed to send verification email:', err);
+      } catch {
+        console.error('[RegisterUser] Failed to send verification email');
       }
     }
 
@@ -102,7 +99,7 @@ export class RegisterUserUseCase {
           role: createdUser.role,
           timestamp: new Date().toISOString(),
         },
-      }).catch(console.error);
+      }).catch(() => undefined);
     }
 
     return {
@@ -116,27 +113,4 @@ export class RegisterUserUseCase {
     };
   }
 
-  private validatePasswordComplexity(password: string): void {
-    const errors: string[] = [];
-
-    if (password.length < 8) {
-      errors.push('at least 8 characters');
-    }
-    if (!/[A-Z]/.test(password)) {
-      errors.push('at least one uppercase letter');
-    }
-    if (!/[a-z]/.test(password)) {
-      errors.push('at least one lowercase letter');
-    }
-    if (!/[0-9]/.test(password)) {
-      errors.push('at least one digit');
-    }
-    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
-      errors.push('at least one special character');
-    }
-
-    if (errors.length > 0) {
-      throw new WeakPasswordError(errors.join(', '));
-    }
-  }
 }

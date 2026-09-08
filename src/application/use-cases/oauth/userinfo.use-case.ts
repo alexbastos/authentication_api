@@ -1,7 +1,7 @@
 // ─── Use Case: OIDC UserInfo ────────────────────────────────────────────────
 
 import type { IUserRepository } from '../../../domain/repositories/user.repository.js';
-import { UserNotFoundError } from '../../../domain/errors/domain-errors.js';
+import { InvalidTokenError, UserNotFoundError } from '../../../domain/errors/domain-errors.js';
 
 export interface UserInfoInput {
   userId: string;
@@ -21,6 +21,9 @@ export class UserInfoUseCase {
   constructor(private readonly userRepository: IUserRepository) {}
 
   async execute(input: UserInfoInput): Promise<UserInfoOutput> {
+    if (!input.scopes.includes('openid')) {
+      throw new InvalidTokenError('The access token does not contain the openid scope');
+    }
     const user = await this.userRepository.findById(input.userId);
     if (!user) throw new UserNotFoundError('User not found');
 

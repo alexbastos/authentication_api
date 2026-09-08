@@ -2,6 +2,8 @@
 
 import type { FastifyInstance, preHandlerHookHandler } from 'fastify';
 import type { RbacController } from '../controllers/rbac.controller.js';
+import { Role } from '../../../domain/entities/role.entity.js';
+import { createRoleMiddleware } from '../middlewares/role.middleware.js';
 import {
   PermissionListResponseSchema,
   CreateRoleBodySchema, RoleResponseSchema, RoleListResponseSchema,
@@ -15,11 +17,12 @@ export function registerRbacRoutes(
   controller: RbacController,
   authMiddleware: preHandlerHookHandler,
 ) {
+  const adminOnly = [authMiddleware, createRoleMiddleware(Role.ADMIN)];
   // ─── GET /api/v1/rbac/permissions ──────────────────────────────────────
   app.route({
     method: 'GET',
     url: '/authentication_api/api/v1/rbac/permissions',
-    preHandler: [authMiddleware],
+    preHandler: adminOnly,
     schema: {
       tags: ['RBAC'],
       summary: 'List all permissions',
@@ -27,6 +30,8 @@ export function registerRbacRoutes(
       querystring: { type: 'object', properties: { category: { type: 'string' } } },
       response: {
         200: PermissionListResponseSchema,
+        401: ErrorResponseSchema,
+        403: ErrorResponseSchema,
       },
       security: [{ bearerAuth: [] }],
     },
@@ -37,7 +42,7 @@ export function registerRbacRoutes(
   app.route({
     method: 'POST',
     url: '/authentication_api/api/v1/rbac/roles',
-    preHandler: [authMiddleware],
+    preHandler: adminOnly,
     schema: {
       tags: ['RBAC'],
       summary: 'Create custom role',
@@ -46,6 +51,8 @@ export function registerRbacRoutes(
       response: {
         201: RoleResponseSchema,
         400: ErrorResponseSchema,
+        401: ErrorResponseSchema,
+        403: ErrorResponseSchema,
         409: ErrorResponseSchema,
       },
       security: [{ bearerAuth: [] }],
@@ -57,13 +64,15 @@ export function registerRbacRoutes(
   app.route({
     method: 'GET',
     url: '/authentication_api/api/v1/rbac/roles',
-    preHandler: [authMiddleware],
+    preHandler: adminOnly,
     schema: {
       tags: ['RBAC'],
       summary: 'List all roles',
       description: 'Returns all roles (system + custom) with their permissions.',
       response: {
         200: RoleListResponseSchema,
+        401: ErrorResponseSchema,
+        403: ErrorResponseSchema,
       },
       security: [{ bearerAuth: [] }],
     },
@@ -74,7 +83,7 @@ export function registerRbacRoutes(
   app.route({
     method: 'GET',
     url: '/authentication_api/api/v1/rbac/roles/:id',
-    preHandler: [authMiddleware],
+    preHandler: adminOnly,
     schema: {
       tags: ['RBAC'],
       summary: 'Get role details',
@@ -82,6 +91,8 @@ export function registerRbacRoutes(
       params: RoleIdParamsSchema,
       response: {
         200: RoleResponseSchema,
+        401: ErrorResponseSchema,
+        403: ErrorResponseSchema,
         404: ErrorResponseSchema,
       },
       security: [{ bearerAuth: [] }],
@@ -93,7 +104,7 @@ export function registerRbacRoutes(
   app.route({
     method: 'PUT',
     url: '/authentication_api/api/v1/rbac/roles/:id',
-    preHandler: [authMiddleware],
+    preHandler: adminOnly,
     schema: {
       tags: ['RBAC'],
       summary: 'Update custom role',
@@ -103,6 +114,8 @@ export function registerRbacRoutes(
       response: {
         200: RoleResponseSchema,
         400: ErrorResponseSchema,
+        401: ErrorResponseSchema,
+        403: ErrorResponseSchema,
         404: ErrorResponseSchema,
       },
       security: [{ bearerAuth: [] }],
@@ -114,7 +127,7 @@ export function registerRbacRoutes(
   app.route({
     method: 'DELETE',
     url: '/authentication_api/api/v1/rbac/roles/:id',
-    preHandler: [authMiddleware],
+    preHandler: adminOnly,
     schema: {
       tags: ['RBAC'],
       summary: 'Delete custom role',
@@ -123,6 +136,8 @@ export function registerRbacRoutes(
       response: {
         204: { type: 'null', description: 'Role deleted' },
         400: ErrorResponseSchema,
+        401: ErrorResponseSchema,
+        403: ErrorResponseSchema,
         404: ErrorResponseSchema,
       },
       security: [{ bearerAuth: [] }],
@@ -134,7 +149,7 @@ export function registerRbacRoutes(
   app.route({
     method: 'POST',
     url: '/authentication_api/api/v1/rbac/users/:id/roles',
-    preHandler: [authMiddleware],
+    preHandler: adminOnly,
     schema: {
       tags: ['RBAC'],
       summary: 'Assign role to user',
@@ -143,6 +158,8 @@ export function registerRbacRoutes(
       body: AssignRoleBodySchema,
       response: {
         201: MessageResponseSchema,
+        401: ErrorResponseSchema,
+        403: ErrorResponseSchema,
         404: ErrorResponseSchema,
       },
       security: [{ bearerAuth: [] }],
@@ -154,7 +171,7 @@ export function registerRbacRoutes(
   app.route({
     method: 'DELETE',
     url: '/authentication_api/api/v1/rbac/users/:id/roles/:roleId',
-    preHandler: [authMiddleware],
+    preHandler: adminOnly,
     schema: {
       tags: ['RBAC'],
       summary: 'Remove role from user',
@@ -162,6 +179,8 @@ export function registerRbacRoutes(
       params: UserRoleParamsSchema,
       response: {
         204: { type: 'null', description: 'Role removed' },
+        401: ErrorResponseSchema,
+        403: ErrorResponseSchema,
       },
       security: [{ bearerAuth: [] }],
     },
@@ -172,7 +191,7 @@ export function registerRbacRoutes(
   app.route({
     method: 'GET',
     url: '/authentication_api/api/v1/rbac/users/:id/permissions',
-    preHandler: [authMiddleware],
+    preHandler: adminOnly,
     schema: {
       tags: ['RBAC'],
       summary: 'Get user effective permissions',
@@ -180,6 +199,8 @@ export function registerRbacRoutes(
       params: UserIdParamsSchema,
       response: {
         200: UserPermissionsResponseSchema,
+        401: ErrorResponseSchema,
+        403: ErrorResponseSchema,
       },
       security: [{ bearerAuth: [] }],
     },

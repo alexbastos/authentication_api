@@ -16,23 +16,76 @@ export const MessageResponseSchema = Type.Object({
   message: Type.String({ description: 'Human-readable response message' }),
 });
 
-export const TokenResponseSchema = Type.Object({
+export const LoginUserSchema = Type.Object({
+  id: Type.String(),
+  name: Type.String(),
+  email: Type.String({ format: 'email' }),
+  role: Type.String({ enum: ['USER', 'ADMIN'] }),
+  emailVerified: Type.Boolean(),
+});
+
+export const AuthenticatedLoginResponseSchema = Type.Object({
+  type: Type.Literal('authenticated', { description: 'Discriminator for a completed login' }),
   accessToken: Type.String({ description: 'JWT access token (RS256, 15min TTL)' }),
   refreshToken: Type.String({ description: 'Refresh token for token renewal' }),
-  user: Type.Object({
-    id: Type.String(),
-    name: Type.String(),
-    email: Type.String({ format: 'email' }),
-    role: Type.String({ enum: ['USER', 'ADMIN'] }),
-    emailVerified: Type.Boolean(),
-  }),
+  user: LoginUserSchema,
+}, {
+  additionalProperties: false,
+  examples: [{
+    type: 'authenticated',
+    accessToken: 'jwt-access-token',
+    refreshToken: 'refresh-token',
+    user: {
+      id: 'user-id',
+      name: 'Nome',
+      email: 'usuario@email.com',
+      role: 'USER',
+      emailVerified: true,
+    },
+  }],
 });
+
+export const MfaRequiredLoginResponseSchema = Type.Object({
+  type: Type.Literal('mfa_required', { description: 'Discriminator for a pending MFA challenge' }),
+  mfaToken: Type.String({
+    description: 'Single-use MFA challenge token. Valid for 5 minutes and accepted only by MFA challenge endpoints.',
+  }),
+  availableMethods: Type.Array(
+    Type.String({ enum: ['TOTP', 'EMAIL', 'RECOVERY'] }),
+    {
+      minItems: 1,
+      uniqueItems: true,
+      description: 'Methods accepted for this login attempt. The client must only offer these values.',
+    },
+  ),
+}, {
+  additionalProperties: false,
+  examples: [{
+    type: 'mfa_required',
+    mfaToken: 'temporary-mfa-token',
+    availableMethods: ['TOTP', 'EMAIL', 'RECOVERY'],
+  }],
+});
+
+export const LoginResponseSchema = Type.Unsafe<
+  | typeof AuthenticatedLoginResponseSchema.static
+  | typeof MfaRequiredLoginResponseSchema.static
+>({
+  oneOf: [AuthenticatedLoginResponseSchema, MfaRequiredLoginResponseSchema],
+  discriminator: { propertyName: 'type' },
+  description: 'A completed login or an MFA challenge. Session tokens are never returned before MFA succeeds.',
+});
+
+// Backwards-compatible schema name for internal imports.
+export const TokenResponseSchema = AuthenticatedLoginResponseSchema;
 
 // ─── Login ──────────────────────────────────────────────────────────────
 
 export const LoginBodySchema = Type.Object({
   email: Type.String({ format: 'email', description: 'User email address' }),
-  password: Type.String({ minLength: 8, description: 'User password' }),
+  password: Type.String({ minLength: 8, maxLength: 1024, description: 'User password' }),
+}, {
+  examples: [{ email: 'usuario@email.com', password: 'SecurePassword123!' }],
 });
 export type LoginBody = Static<typeof LoginBodySchema>;
 
@@ -43,7 +96,8 @@ export const RegisterBodySchema = Type.Object({
   email: Type.String({ format: 'email', description: 'Email address (must be unique)' }),
   password: Type.String({
     minLength: 8,
-    description: 'Password (min 8 chars, uppercase, lowercase, digit, special char)',
+    maxLength: 72,
+    description: 'Password (8-72 UTF-8 bytes, uppercase, lowercase, digit, special char)',
   }),
 });
 export type RegisterBody = Static<typeof RegisterBodySchema>;
@@ -85,6 +139,7 @@ export const ResetPasswordBodySchema = Type.Object({
   token: Type.String({ description: 'Password reset token received by email' }),
   newPassword: Type.String({
     minLength: 8,
+    maxLength: 72,
     description: 'New password (must meet complexity requirements)',
   }),
 });
@@ -96,6 +151,7 @@ export const ChangePasswordBodySchema = Type.Object({
   currentPassword: Type.String({ minLength: 1, description: 'Current account password' }),
   newPassword: Type.String({
     minLength: 8,
+    maxLength: 72,
     description: 'New password (must meet complexity requirements)',
   }),
 });
@@ -109,16 +165,26 @@ export const SocialLoginBodySchema = Type.Object({
 });
 export type SocialLoginBody = Static<typeof SocialLoginBodySchema>;
 
-export const SocialLoginResponseSchema = Type.Object({
+export const AuthenticatedSocialLoginResponseSchema = Type.Object({
+  type: Type.Literal('authenticated'),
   accessToken: Type.String(),
   refreshToken: Type.String(),
   user: Type.Object({
     id: Type.String(),
     name: Type.String(),
     email: Type.String(),
-    role: Type.String(),
+    role: Type.String({ enum: ['USER', 'ADMIN'] }),
+    emailVerified: Type.Boolean(),
   }),
   isNewUser: Type.Boolean({ description: 'True if the user was auto-registered' }),
+}, { additionalProperties: false });
+
+export const SocialLoginResponseSchema = Type.Unsafe<
+  | typeof AuthenticatedSocialLoginResponseSchema.static
+  | typeof MfaRequiredLoginResponseSchema.static
+>({
+  oneOf: [AuthenticatedSocialLoginResponseSchema, MfaRequiredLoginResponseSchema],
+  discriminator: { propertyName: 'type' },
 });
 
 // ─── Refresh Token ──────────────────────────────────────────────────────
@@ -136,7 +202,9 @@ export const RefreshTokenResponseSchema = Type.Object({
 // ─── Logout / Revoke ────────────────────────────────────────────────────
 
 export const LogoutBodySchema = Type.Object({
-  refreshToken: Type.Optional(Type.String({ description: 'Refresh token to revoke' })),
+  refreshToken: Type.Optional(Type.String({
+    description: 'Deprecated compatibility field. The complete refresh family is resolved from the signed access-token session and revoked atomically.',
+  })),
 });
 export type LogoutBody = Static<typeof LogoutBodySchema>;
 

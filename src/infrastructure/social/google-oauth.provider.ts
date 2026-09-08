@@ -22,6 +22,7 @@ export class GoogleOAuthProvider implements ISocialAuthProvider {
     // Validate the Google ID token using Google's tokeninfo endpoint
     const response = await fetch(
       `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`,
+      { signal: AbortSignal.timeout(5_000) },
     );
 
     if (!response.ok) {

@@ -58,7 +58,7 @@ export class PrismaRefreshTokenRepository implements IRefreshTokenRepository {
   }
 
   async revokeByToken(token: string): Promise<void> {
-    await this.prisma.refreshToken.update({
+    await this.prisma.refreshToken.updateMany({
       where: { token },
       data: { revokedAt: new Date() },
     });
@@ -85,6 +85,36 @@ export class PrismaRefreshTokenRepository implements IRefreshTokenRepository {
     });
   }
 
+  async rotate(currentTokenId: string, replacement: RefreshToken): Promise<boolean> {
+    return this.prisma.$transaction(async (tx) => {
+      const consumed = await tx.refreshToken.updateMany({
+        where: {
+          id: currentTokenId,
+          revokedAt: null,
+          expiresAt: { gt: new Date() },
+        },
+        data: { revokedAt: new Date() },
+      });
+
+      if (consumed.count !== 1) return false;
+
+      await tx.refreshToken.create({
+        data: {
+          id: replacement.id,
+          token: replacement.token,
+          userId: replacement.userId,
+          family: replacement.family,
+          userAgent: replacement.userAgent,
+          ipAddress: replacement.ipAddress,
+          deviceName: replacement.deviceName,
+          expiresAt: replacement.expiresAt,
+          revokedAt: replacement.revokedAt,
+        },
+      });
+      return true;
+    });
+  }
+
   async deleteExpired(): Promise<number> {
     const result = await this.prisma.refreshToken.deleteMany({
       where: { expiresAt: { lt: new Date() } },
@@ -107,4 +137,3 @@ export class PrismaRefreshTokenRepository implements IRefreshTokenRepository {
     });
   }
 }
-

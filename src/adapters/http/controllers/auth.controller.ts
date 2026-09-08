@@ -62,7 +62,7 @@ export class AuthController {
       ipAddress: request.ip,
     });
 
-    return reply.status(200).send(result);
+    return this.sendSensitiveResponse(reply, result);
   }
 
   async socialLogin(request: FastifyRequest<{ Body: SocialLoginBody }>, reply: FastifyReply) {
@@ -73,7 +73,7 @@ export class AuthController {
       ipAddress: request.ip,
     });
 
-    return reply.status(200).send(result);
+    return this.sendSensitiveResponse(reply, result);
   }
 
   async refresh(request: FastifyRequest<{ Body: RefreshTokenBody }>, reply: FastifyReply) {
@@ -81,7 +81,13 @@ export class AuthController {
       refreshToken: request.body.refreshToken,
     });
 
-    return reply.status(200).send(result);
+    return this.sendSensitiveResponse(reply, result);
+  }
+
+  private sendSensitiveResponse(reply: FastifyReply, payload: unknown) {
+    reply.header('Cache-Control', 'no-store');
+    reply.header('Pragma', 'no-cache');
+    return reply.status(200).send(payload);
   }
 
   async logout(request: FastifyRequest<{ Body: LogoutBody }>, reply: FastifyReply) {

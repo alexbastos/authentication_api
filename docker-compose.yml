@@ -1,6 +1,24 @@
 version: '3.8'
 
 services:
+  # ─── Prisma migrations ────────────────────────────────────────────────────
+  migrate:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: migrator
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=${DATABASE_URL_DOCKER:?Set DATABASE_URL_DOCKER}
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - auth-network
+    restart: 'no'
+
   # ─── Authentication API ──────────────────────────────────────────────────
   app:
     build:
@@ -15,8 +33,10 @@ services:
     environment:
       # Sobrescreve variáveis críticas independente do .env
       - NODE_ENV=production
+      - DATABASE_URL=${DATABASE_URL_DOCKER:?Set DATABASE_URL_DOCKER}
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:?Set REDIS_PASSWORD}
       - JWT_PRIVATE_KEY_PATH=/app/keys/private.pem
       - JWT_PUBLIC_KEY_PATH=/app/keys/public.pem
     env_file:
@@ -24,8 +44,8 @@ services:
     volumes:
       - ./keys:/app/keys:ro
     depends_on:
-      postgres:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
     networks:
@@ -35,17 +55,14 @@ services:
   # ─── PostgreSQL ──────────────────────────────────────────────────────────
   postgres:
     image: postgres:15-alpine
-    ports:
-      - '5432:5432'
     environment:
-      POSTGRES_USER: auth_user
-      POSTGRES_PASSWORD: auth_password
-      POSTGRES_DB: auth_db
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./scripts/sql:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U auth_user -d auth_db']
+      test: ['CMD-SHELL', 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
       interval: 5s
       timeout: 5s
       retries: 5
@@ -56,13 +73,13 @@ services:
   # ─── Redis (Rate Limit e Blocklist) ─────────────────────────────────────
   redis:
     image: redis:7-alpine
-    ports:
-      - '6379:6379'
-    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD}
+    command: ['sh', '-c', 'exec redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru --requirepass "$${REDIS_PASSWORD}"']
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ['CMD', 'redis-cli', 'ping']
+      test: ['CMD-SHELL', 'redis-cli -a "$${REDIS_PASSWORD}" ping']
       interval: 5s
       timeout: 5s
       retries: 5

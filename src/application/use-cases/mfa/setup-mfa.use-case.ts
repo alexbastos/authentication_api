@@ -5,10 +5,12 @@ import type { IMfaRepository } from '../../../domain/repositories/mfa.repository
 import type { ITotpService } from '../../ports/totp.port.js';
 import type { IEmailService } from '../../ports/email.port.js';
 import type { ICacheProvider } from '../../ports/cache.port.js';
+import type { ISecureTokenService } from '../../ports/secure-token.port.js';
 import { MfaSecret } from '../../../domain/entities/mfa-secret.entity.js';
 import { MfaMethod } from '../../../domain/entities/role.entity.js';
 import { UserNotFoundError, MfaAlreadyEnabledError } from '../../../domain/errors/domain-errors.js';
 import { v4 as uuidv4 } from 'uuid';
+import { randomInt } from 'node:crypto';
 
 const MFA_EMAIL_CODE_PREFIX = 'mfa_email_code:';
 
@@ -33,6 +35,7 @@ export class SetupMfaUseCase {
     private readonly cacheProvider: ICacheProvider,
     private readonly mfaIssuerName: string = 'AuthenticationAPI',
     private readonly mfaCodeTtlMinutes: number = 10,
+    private readonly secureTokenService?: ISecureTokenService,
   ) {}
 
   async execute(input: SetupMfaInput): Promise<SetupMfaOutput> {
@@ -42,9 +45,6 @@ export class SetupMfaUseCase {
     if (user.mfaEnabled) {
       throw new MfaAlreadyEnabledError();
     }
-
-    // Delete any existing pending secret
-    await this.mfaRepository.deleteSecretByUserId(user.id);
 
     if (input.method === MfaMethod.TOTP) {
       const { secret, otpAuthUrl } = this.totpService.generateSecret(
@@ -62,7 +62,7 @@ export class SetupMfaUseCase {
         createdAt: new Date(),
       });
 
-      await this.mfaRepository.createSecret(mfaSecret);
+      await this.mfaRepository.replacePendingSecret(mfaSecret);
 
       return {
         method: MfaMethod.TOTP,
@@ -73,9 +73,13 @@ export class SetupMfaUseCase {
     }
 
     // EMAIL method
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const code = randomInt(100000, 1_000_000).toString();
     const cacheKey = `${MFA_EMAIL_CODE_PREFIX}${user.id}`;
-    await this.cacheProvider.set(cacheKey, code, this.mfaCodeTtlMinutes * 60);
+    await this.cacheProvider.set(
+      cacheKey,
+      this.secureTokenService?.digest(code) ?? code,
+      this.mfaCodeTtlMinutes * 60,
+    );
 
     const mfaSecret = new MfaSecret({
       id: uuidv4(),
@@ -86,7 +90,7 @@ export class SetupMfaUseCase {
       createdAt: new Date(),
     });
 
-    await this.mfaRepository.createSecret(mfaSecret);
+    await this.mfaRepository.replacePendingSecret(mfaSecret);
     await this.emailService.sendMfaCode(user.email, user.name, code);
 
     return {

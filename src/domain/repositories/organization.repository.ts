@@ -6,6 +6,7 @@ import type { OrgRole } from '../entities/role.entity.js';
 
 export interface IOrganizationRepository {
   create(org: Organization): Promise<Organization>;
+  createWithOwner(org: Organization, ownerUserId: string): Promise<Organization>;
   findById(id: string): Promise<Organization | null>;
   findBySlug(slug: string): Promise<Organization | null>;
   update(org: Organization): Promise<Organization>;

@@ -36,14 +36,12 @@ export class PrismaAuthorizationCodeRepository implements IAuthorizationCodeRepo
     return this.toDomain(record);
   }
 
-  async update(code: AuthorizationCode): Promise<void> {
-    const data = code.toJSON();
-    await this.prisma.authorizationCode.update({
-      where: { id: data.id },
-      data: {
-        usedAt: data.usedAt,
-      },
+  async consume(id: string): Promise<boolean> {
+    const result = await this.prisma.authorizationCode.updateMany({
+      where: { id, usedAt: null, expiresAt: { gt: new Date() } },
+      data: { usedAt: new Date() },
     });
+    return result.count === 1;
   }
 
   async deleteExpired(): Promise<number> {

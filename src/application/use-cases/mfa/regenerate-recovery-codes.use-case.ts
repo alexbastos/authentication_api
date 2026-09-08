@@ -4,10 +4,12 @@ import type { IUserRepository } from '../../../domain/repositories/user.reposito
 import type { IMfaRepository } from '../../../domain/repositories/mfa.repository.js';
 import type { IHasher } from '../../ports/hasher.port.js';
 import type { ValidateMfaCodeUseCase } from './validate-mfa-code.use-case.js';
+import type { MfaValidationMethod } from './validate-mfa-code.use-case.js';
 import { MfaRecoveryCode } from '../../../domain/entities/mfa-recovery-code.entity.js';
 import {
   UserNotFoundError,
   MfaNotEnabledError,
+  MfaMethodNotAllowedError,
 } from '../../../domain/errors/domain-errors.js';
 import { v4 as uuidv4 } from 'uuid';
 import crypto from 'node:crypto';
@@ -17,6 +19,7 @@ const RECOVERY_CODE_COUNT = 10;
 export interface RegenerateRecoveryCodesInput {
   userId: string;
   code: string;
+  method: MfaValidationMethod;
 }
 
 export interface RegenerateRecoveryCodesOutput {
@@ -40,11 +43,14 @@ export class RegenerateRecoveryCodesUseCase {
       throw new MfaNotEnabledError();
     }
 
-    // Require valid TOTP code to regenerate
+    if (input.method !== 'RECOVERY' && input.method !== user.mfaMethod) {
+      throw new MfaMethodNotAllowedError();
+    }
+
     await this.validateMfaCodeUC.execute({
       userId: user.id,
       code: input.code,
-      method: 'TOTP',
+      method: input.method,
     });
 
     // Generate new recovery codes
@@ -67,8 +73,7 @@ export class RegenerateRecoveryCodesUseCase {
       );
     }
 
-    await this.mfaRepository.deleteRecoveryCodesByUserId(user.id);
-    await this.mfaRepository.createRecoveryCodes(recoveryCodeEntities);
+    await this.mfaRepository.replaceRecoveryCodes(user.id, recoveryCodeEntities);
 
     return {
       recoveryCodes: plainCodes,

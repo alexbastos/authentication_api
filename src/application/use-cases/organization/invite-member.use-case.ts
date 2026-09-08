@@ -10,6 +10,7 @@ import {
   OrganizationNotFoundError,
   NotOrganizationMemberError,
   InsufficientOrgRoleError,
+  CannotAssignOwnerError,
 } from '../../../domain/errors/domain-errors.js';
 
 export interface InviteMemberInput {
@@ -26,6 +27,7 @@ export class InviteMemberUseCase {
   ) {}
 
   async execute(input: InviteMemberInput) {
+    if (input.role === OrgRole.OWNER) throw new CannotAssignOwnerError();
     const org = await this.orgRepository.findById(input.orgId);
     if (!org) {
       throw new OrganizationNotFoundError(input.orgId);

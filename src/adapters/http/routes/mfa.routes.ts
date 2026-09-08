@@ -1,6 +1,7 @@
 // ─── MFA Routes ───────────────────────────────────────────────────────────
 
 import type { FastifyInstance, FastifyRequest, FastifyReply, preHandlerHookHandler } from 'fastify';
+import { Type } from '@sinclair/typebox';
 import type { MfaController } from '../controllers/mfa.controller.js';
 import {
   SetupMfaBodySchema,
@@ -14,9 +15,12 @@ import {
   RegenerateRecoveryCodesBodySchema,
   RegenerateRecoveryCodesResponseSchema,
   MfaMessageResponseSchema,
+  SendMfaEmailCodeBodySchema,
+  MfaBadRequestErrorResponseSchema,
+  MfaUnauthorizedErrorResponseSchema,
+  MfaConflictErrorResponseSchema,
+  MfaRateLimitErrorResponseSchema,
 } from '../schemas/mfa.schema.js';
-import { ErrorResponseSchema } from '../schemas/auth.schema.js';
-import { Type } from '@sinclair/typebox';
 
 export function registerMfaRoutes(
   app: FastifyInstance,
@@ -31,12 +35,13 @@ export function registerMfaRoutes(
     schema: {
       tags: ['Auth', 'MFA/2FA'],
       summary: 'Setup two-factor authentication',
-      description: 'Initiates 2FA setup. For TOTP: generates secret and QR code. For EMAIL: sends verification code. Requires authentication.',
+      description: 'Initiates 2FA setup and invalidates any previous pending setup. For TOTP, always returns the secret and a PNG QR code as a data URL. For EMAIL, automatically sends a 6-digit verification code. Requires authentication.',
       body: SetupMfaBodySchema,
       response: {
         200: SetupMfaResponseSchema,
-        400: ErrorResponseSchema,
-        409: ErrorResponseSchema,
+        400: MfaBadRequestErrorResponseSchema,
+        401: MfaUnauthorizedErrorResponseSchema,
+        409: MfaConflictErrorResponseSchema,
       },
       security: [{ bearerAuth: [] }],
     },
@@ -51,12 +56,13 @@ export function registerMfaRoutes(
     schema: {
       tags: ['Auth', 'MFA/2FA'],
       summary: 'Verify MFA setup and activate 2FA',
-      description: 'Confirms MFA setup with a verification code. On success, enables 2FA and returns 10 recovery codes (shown only once).',
+      description: 'Confirms the pending MFA setup with a 6-digit TOTP or email code. On success, atomically enables MFA, revokes existing sessions, and returns exactly 10 recovery codes in XXXXXXXX-XXXXXXXX format. They are shown only in this response and cannot be queried later; use the regeneration endpoint to obtain a new list.',
       body: VerifyMfaSetupBodySchema,
       response: {
         200: VerifyMfaSetupResponseSchema,
-        400: ErrorResponseSchema,
-        401: ErrorResponseSchema,
+        400: MfaBadRequestErrorResponseSchema,
+        401: MfaUnauthorizedErrorResponseSchema,
+        409: MfaConflictErrorResponseSchema,
       },
       security: [{ bearerAuth: [] }],
     },
@@ -68,12 +74,19 @@ export function registerMfaRoutes(
     schema: {
       tags: ['Auth', 'MFA/2FA'],
       summary: 'Verify MFA code (login step 2)',
-      description: 'Second step of login for users with 2FA enabled. Accepts the temporary mfaToken from login + a TOTP code, email code, or recovery code. Returns final access + refresh tokens on success.',
+      description: 'Second login step. Accepts the single-use 5-minute mfaToken, a code, and one of the availableMethods returned by login. On success the challenge is atomically invalidated and final session tokens are returned. Invalid codes invalidate the challenge after the configured attempt limit (5 by default).',
       body: ValidateMfaCodeBodySchema,
       response: {
         200: ValidateMfaCodeResponseSchema,
-        401: ErrorResponseSchema,
-        429: ErrorResponseSchema,
+        400: MfaBadRequestErrorResponseSchema,
+        401: MfaUnauthorizedErrorResponseSchema,
+        403: Type.Object({
+          statusCode: Type.Literal(403),
+          error: Type.String(),
+          code: Type.Literal('USER_INACTIVE'),
+          message: Type.String(),
+        }),
+        429: MfaRateLimitErrorResponseSchema,
       },
     },
     handler: controller.verifyCode.bind(controller),
@@ -87,12 +100,12 @@ export function registerMfaRoutes(
     schema: {
       tags: ['Auth', 'MFA/2FA'],
       summary: 'Disable two-factor authentication',
-      description: 'Disables 2FA for the authenticated user. Requires a valid TOTP or recovery code for confirmation.',
+      description: 'Disables MFA atomically and revokes existing sessions after confirmation with the configured method (TOTP or EMAIL), or a recovery code. For EMAIL accounts, first request a code from /auth/mfa/email-code using Bearer authentication.',
       body: DisableMfaBodySchema,
       response: {
         200: MfaMessageResponseSchema,
-        400: ErrorResponseSchema,
-        401: ErrorResponseSchema,
+        400: MfaBadRequestErrorResponseSchema,
+        401: MfaUnauthorizedErrorResponseSchema,
       },
       security: [{ bearerAuth: [] }],
     },
@@ -110,6 +123,7 @@ export function registerMfaRoutes(
       description: 'Returns whether 2FA is enabled, the active method, and the number of remaining recovery codes.',
       response: {
         200: MfaStatusResponseSchema,
+        401: MfaUnauthorizedErrorResponseSchema,
       },
       security: [{ bearerAuth: [] }],
     },
@@ -124,12 +138,12 @@ export function registerMfaRoutes(
     schema: {
       tags: ['Auth', 'MFA/2FA'],
       summary: 'Regenerate recovery codes',
-      description: 'Invalidates all existing recovery codes and generates 10 new ones. Requires a valid TOTP code for confirmation.',
+      description: 'Invalidates all existing recovery codes and returns exactly 10 new single-use codes. Confirm with the configured method (TOTP or EMAIL), or a recovery code. For EMAIL accounts, first request a code from /auth/mfa/email-code using Bearer authentication.',
       body: RegenerateRecoveryCodesBodySchema,
       response: {
         200: RegenerateRecoveryCodesResponseSchema,
-        400: ErrorResponseSchema,
-        401: ErrorResponseSchema,
+        400: MfaBadRequestErrorResponseSchema,
+        401: MfaUnauthorizedErrorResponseSchema,
       },
       security: [{ bearerAuth: [] }],
     },
@@ -138,17 +152,26 @@ export function registerMfaRoutes(
 
   // ─── POST /authentication_api/api/v1/auth/mfa/email-code ──────────────
   app.post('/authentication_api/api/v1/auth/mfa/email-code', {
+    preHandler: [async (request, reply) => {
+      if (request.headers.authorization) {
+        await (authMiddleware as (
+          request: FastifyRequest,
+          reply: FastifyReply,
+        ) => Promise<void>)(request, reply);
+      }
+    }],
     schema: {
       tags: ['Auth', 'MFA/2FA'],
       summary: 'Send MFA code via email',
-      description: 'Sends a 6-digit verification code to the user\'s email. Used during login step 2 when user prefers email verification over TOTP. Requires the temporary mfaToken.',
-      body: Type.Object({
-        mfaToken: Type.String({ description: 'Temporary MFA token from login' }),
-      }),
+      description: 'Sends a 6-digit verification code valid for the configured TTL (10 minutes by default). During login, provide an mfaToken whose availableMethods includes EMAIL. For account actions on an EMAIL-configured account, authenticate with Bearer and send an empty object. Requests are limited to one email per minute.',
+      body: SendMfaEmailCodeBodySchema,
       response: {
         200: MfaMessageResponseSchema,
-        401: ErrorResponseSchema,
+        400: MfaBadRequestErrorResponseSchema,
+        401: MfaUnauthorizedErrorResponseSchema,
+        429: MfaRateLimitErrorResponseSchema,
       },
+      security: [{ bearerAuth: [] }, {}],
     },
     handler: controller.sendEmailCode.bind(controller),
   });

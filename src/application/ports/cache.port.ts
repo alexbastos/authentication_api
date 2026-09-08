@@ -4,6 +4,12 @@
 export interface ICacheProvider {
   set(key: string, value: string, ttlSeconds: number): Promise<void>;
   get(key: string): Promise<string | null>;
+  /** Atomically returns and removes a value. */
+  getAndDelete(key: string): Promise<string | null>;
+  /** Atomically deletes the key only when its value matches. */
+  consumeIfValueMatches(key: string, expectedValue: string): Promise<boolean>;
+  /** Atomically stores a value only when the key does not already exist. */
+  setIfNotExists(key: string, value: string, ttlSeconds: number): Promise<boolean>;
   del(key: string): Promise<void>;
   exists(key: string): Promise<boolean>;
   /**

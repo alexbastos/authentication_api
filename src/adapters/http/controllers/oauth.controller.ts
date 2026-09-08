@@ -65,14 +65,40 @@ export class OAuthController {
 
   async token(request: FastifyRequest<any>, reply: FastifyReply) {
     const { grant_type, code, redirect_uri, client_id, client_secret, code_verifier } = request.body as any;
+    const authorization = request.headers.authorization;
+    let basicCredentials: { clientId: string; clientSecret: string } | undefined;
+
+    if (authorization?.startsWith('Basic ')) {
+      try {
+        const decoded = Buffer.from(authorization.slice(6), 'base64').toString('utf8');
+        const separator = decoded.indexOf(':');
+        if (separator <= 0) throw new Error('Malformed Basic credentials');
+        basicCredentials = {
+          clientId: decodeURIComponent(decoded.slice(0, separator)),
+          clientSecret: decodeURIComponent(decoded.slice(separator + 1)),
+        };
+      } catch {
+        return reply.status(401).send({ error: 'invalid_client', code: 'INVALID_CLIENT', message: 'OAuth client authentication failed' });
+      }
+    }
+
+    if (basicCredentials && client_secret) {
+      return reply.status(400).send({ error: 'invalid_request', code: 'INVALID_GRANT', message: 'Use only one client authentication method' });
+    }
+
+    const resolvedClientId = basicCredentials?.clientId ?? client_id;
+    if (!resolvedClientId || (basicCredentials && client_id && client_id !== basicCredentials.clientId)) {
+      return reply.status(400).send({ error: 'invalid_request', code: 'INVALID_GRANT', message: 'Conflicting or missing client_id' });
+    }
 
     const result = await this.tokenExchangeUC.execute({
       grantType: grant_type,
       code,
       redirectUri: redirect_uri,
-      clientId: client_id,
-      clientSecret: client_secret,
+      clientId: resolvedClientId,
+      clientSecret: basicCredentials?.clientSecret ?? client_secret,
       codeVerifier: code_verifier,
+      clientAuthMethod: basicCredentials ? 'basic' : client_secret ? 'post' : 'none',
     });
 
     // Disable caching for tokens
@@ -93,6 +119,7 @@ export class OAuthController {
       scopes,
     });
 
+    reply.header('Cache-Control', 'no-store');
     return reply.status(200).send(result);
   }
 }

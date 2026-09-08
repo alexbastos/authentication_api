@@ -9,8 +9,7 @@ import {
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import type { IStorageService } from '../../application/ports/storage.port.js';
-
-const SEVEN_DAYS_IN_SECONDS = 7 * 24 * 60 * 60;
+import { AVATAR_URL_TTL_SECONDS } from '../../application/services/avatar-url.service.js';
 
 export class S3StorageService implements IStorageService {
   private readonly client: S3Client;
@@ -47,7 +46,7 @@ export class S3StorageService implements IStorageService {
     );
   }
 
-  async getSignedUrl(key: string, expiresInSeconds = SEVEN_DAYS_IN_SECONDS): Promise<string> {
+  async getSignedUrl(key: string, expiresInSeconds = AVATAR_URL_TTL_SECONDS): Promise<string> {
     const command = new GetObjectCommand({
       Bucket: this.bucket,
       Key: key,

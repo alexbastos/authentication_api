@@ -2,11 +2,14 @@
 
 import type { IPermissionRepository } from '../../../domain/repositories/permission.repository.js';
 import type { Permission } from '../../../domain/entities/permission.entity.js';
+import type { Role } from '../../../domain/entities/role.entity.js';
+import { assertGlobalAdmin } from '../../services/global-authorization.service.js';
 
 export class ListPermissionsUseCase {
   constructor(private readonly permissionRepository: IPermissionRepository) {}
 
-  async execute(category?: string): Promise<Permission[]> {
+  async execute(requesterRole: Role, category?: string): Promise<Permission[]> {
+    assertGlobalAdmin(requesterRole);
     if (category) {
       return this.permissionRepository.findByCategory(category);
     }
