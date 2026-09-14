@@ -10,6 +10,7 @@ import multipart, { ajvFilePlugin } from '@fastify/multipart';
 
 import type { Env } from './infrastructure/config/env.js';
 import type { Container } from './container.js';
+import { normalizeForwardedForHeader } from './adapters/http/client-context.js';
 import { registerAuthRoutes } from './adapters/http/routes/auth.routes.js';
 import { registerUserRoutes } from './adapters/http/routes/user.routes.js';
 import { registerClientAppRoutes } from './adapters/http/routes/client-app.routes.js';
@@ -80,6 +81,14 @@ export async function buildApp(env: Env, container: Container): Promise<FastifyI
   });
 
   // ─── Security Plugins ───────────────────────────────────────────────
+  // API Gateway HTTP APIs emit RFC 7239 Forwarded, while Fastify resolves the
+  // client address from X-Forwarded-For. trustProxy still decides whether the
+  // converted chain is allowed to influence request.ip.
+  app.addHook('onRequest', (request, _reply, done) => {
+    normalizeForwardedForHeader(request);
+    done();
+  });
+
   await app.register(helmet, {
     contentSecurityPolicy: docsEnabled ? false : undefined,
   });

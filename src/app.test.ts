@@ -11,6 +11,7 @@ afterEach(async () => {
 async function createApp(options?: {
 	databaseFails?: boolean;
 	redisFails?: boolean;
+	trustedProxyCidrs?: string;
 }) {
 	const unusedController = new Proxy({}, { get: () => vi.fn() });
 	const databaseCheck = options?.databaseFails
@@ -27,6 +28,8 @@ async function createApp(options?: {
 		{
 			LOG_LEVEL: "fatal",
 			NODE_ENV: "test",
+			TRUST_PROXY: Boolean(options?.trustedProxyCidrs),
+			TRUSTED_PROXY_CIDRS: options?.trustedProxyCidrs ?? "",
 			CORS_ORIGIN: "*",
 			RATE_LIMIT_MAX: 100,
 			RATE_LIMIT_WINDOW_MS: 60_000,
@@ -49,6 +52,7 @@ async function createApp(options?: {
 			orgRepository: unusedController,
 		} as never,
 	);
+	app.get("/test/client-ip", (request) => ({ ipAddress: request.ip }));
 	await app.ready();
 	apps.push(app);
 	return { app, databaseCheck, redisCheck };
@@ -79,5 +83,22 @@ describe("health readiness endpoint", () => {
 
 		expect(response.statusCode).toBe(503);
 		expect(response.json()).toMatchObject({ status: "unavailable" });
+	});
+});
+
+describe("proxy client address normalization", () => {
+	it("uses API Gateway's Forwarded address when the gateway is trusted", async () => {
+		const { app } = await createApp({ trustedProxyCidrs: "10.0.0.0/8" });
+
+		const response = await app.inject({
+			method: "GET",
+			url: "/test/client-ip",
+			remoteAddress: "10.0.0.10",
+			headers: {
+				forwarded: "for=200.160.2.3;proto=https",
+			},
+		});
+
+		expect(response.json()).toEqual({ ipAddress: "200.160.2.3" });
 	});
 });

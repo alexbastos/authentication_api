@@ -300,8 +300,33 @@ Exemplo para autorizar um único IP de saída do BFF:
 
 ```dotenv
 TRUST_PROXY=true
-TRUSTED_PROXY_CIDRS=3.235.32.97/32
+TRUSTED_PROXY_CIDRS=203.0.113.10/32
 ```
+
+Para uma **HTTP API do AWS API Gateway**, inclua todos os CIDRs de saída do
+serviço na região da integração, e não apenas o IP observado em uma única
+requisição. Esses endereços podem mudar. A aplicação também converte o header
+RFC 7239 `Forwarded`, emitido por HTTP APIs, para a cadeia utilizada pelo
+Fastify. Se `TRUST_PROXY=false`, o endereço do Gateway continuará sendo salvo.
+
+Exemplo com o data source do provider AWS no Terraform:
+
+```hcl
+data "aws_ip_ranges" "api_gateway" {
+  regions  = [var.aws_region]
+  services = ["api_gateway"]
+}
+```
+
+```dotenv
+TRUST_PROXY=true
+TRUSTED_PROXY_CIDRS=<cidr_blocks e ipv6_cidr_blocks separados por vírgula>
+```
+
+Em produção, restrinja também o acesso direto ao origin (por exemplo, usando
+uma integração privada com VPC Link). Uma allowlist de faixas públicas da AWS
+identifica a infraestrutura do serviço, mas não identifica exclusivamente a sua
+API Gateway.
 
 ### Users (CRUD)
 
