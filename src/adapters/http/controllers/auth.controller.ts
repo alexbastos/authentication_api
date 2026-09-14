@@ -21,6 +21,7 @@ import type {
   ResendVerificationBody,
 } from '../schemas/auth.schema.js';
 import { SocialProvider } from '../../../domain/entities/role.entity.js';
+import { resolveClientContext } from '../client-context.js';
 
 export class AuthController {
   constructor(
@@ -54,31 +55,35 @@ export class AuthController {
   }
 
   async login(request: FastifyRequest<{ Body: LoginBody }>, reply: FastifyReply) {
+    const client = resolveClientContext(request);
     const result = await this.authenticateUserUC.execute({
       email: request.body.email,
       password: request.body.password,
-      identifier: request.ip,
-      userAgent: request.headers['user-agent'],
-      ipAddress: request.ip,
+      identifier: client.ipAddress,
+      userAgent: client.userAgent,
+      ipAddress: client.ipAddress,
     });
 
     return this.sendSensitiveResponse(reply, result);
   }
 
   async socialLogin(request: FastifyRequest<{ Body: SocialLoginBody }>, reply: FastifyReply) {
+    const client = resolveClientContext(request);
     const result = await this.authenticateSocialUC.execute({
       provider: request.body.provider as SocialProvider,
       token: request.body.token,
-      userAgent: request.headers['user-agent'],
-      ipAddress: request.ip,
+      userAgent: client.userAgent,
+      ipAddress: client.ipAddress,
     });
 
     return this.sendSensitiveResponse(reply, result);
   }
 
   async refresh(request: FastifyRequest<{ Body: RefreshTokenBody }>, reply: FastifyReply) {
+    const client = resolveClientContext(request);
     const result = await this.refreshTokenUC.execute({
       refreshToken: request.body.refreshToken,
+      ipAddress: client.ipAddress,
     });
 
     return this.sendSensitiveResponse(reply, result);

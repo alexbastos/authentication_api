@@ -21,6 +21,7 @@ import {
   MfaConflictErrorResponseSchema,
   MfaRateLimitErrorResponseSchema,
 } from '../schemas/mfa.schema.js';
+import { ForwardedClientContextHeadersSchema } from '../schemas/auth.schema.js';
 
 export function registerMfaRoutes(
   app: FastifyInstance,
@@ -75,6 +76,7 @@ export function registerMfaRoutes(
       tags: ['Auth', 'MFA/2FA'],
       summary: 'Verify MFA code (login step 2)',
       description: 'Second login step. Accepts the single-use 5-minute mfaToken, a code, and one of the availableMethods returned by login. On success the challenge is atomically invalidated and final session tokens are returned. Invalid codes invalidate the challenge after the configured attempt limit (5 by default).',
+      headers: ForwardedClientContextHeadersSchema,
       body: ValidateMfaCodeBodySchema,
       response: {
         200: ValidateMfaCodeResponseSchema,

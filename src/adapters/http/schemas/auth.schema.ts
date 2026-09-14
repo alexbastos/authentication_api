@@ -16,6 +16,20 @@ export const MessageResponseSchema = Type.Object({
   message: Type.String({ description: 'Human-readable response message' }),
 });
 
+export const ForwardedClientContextHeadersSchema = Type.Object({
+  'x-forwarded-for': Type.Optional(Type.String({
+    maxLength: 1024,
+    description: 'Original client IP chain supplied by an authorized BFF/proxy. Ignored when the immediate proxy is not included in TRUSTED_PROXY_CIDRS.',
+  })),
+  'x-original-user-agent': Type.Optional(Type.String({
+    maxLength: 500,
+    description: 'Original browser User-Agent supplied by an authorized BFF/proxy. Ignored when the forwarded IP chain is not trusted.',
+  })),
+}, {
+  additionalProperties: true,
+  description: 'Optional client context forwarded by an authorized BFF/proxy',
+});
+
 export const LoginUserSchema = Type.Object({
   id: Type.String(),
   name: Type.String(),

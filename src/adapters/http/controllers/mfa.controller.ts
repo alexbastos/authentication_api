@@ -21,6 +21,7 @@ import type {
   RegenerateRecoveryCodesBody,
   SendMfaEmailCodeBody,
 } from '../schemas/mfa.schema.js';
+import { resolveClientContext } from '../client-context.js';
 
 export class MfaController {
   constructor(
@@ -53,12 +54,13 @@ export class MfaController {
   }
 
   async verifyCode(request: FastifyRequest<{ Body: ValidateMfaCodeBody }>, reply: FastifyReply) {
+    const client = resolveClientContext(request);
     const result = await this.completeMfaLoginUC.execute({
       mfaToken: request.body.mfaToken,
       code: request.body.code,
       method: request.body.method as MfaValidationMethod,
-      userAgent: request.headers['user-agent'],
-      ipAddress: request.ip,
+      userAgent: client.userAgent,
+      ipAddress: client.ipAddress,
     });
 
     reply.header('Cache-Control', 'no-store');

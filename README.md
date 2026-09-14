@@ -196,6 +196,8 @@ Todas as variáveis de ambiente estão documentadas no arquivo `.env.example`:
 | `PORT` | Porta do servidor | `3000` |
 | `HOST` | Host de escuta | `0.0.0.0` |
 | `NODE_ENV` | Ambiente (development/production/test) | `development` |
+| `TRUST_PROXY` | Habilita contexto encaminhado apenas pelos proxies autorizados | `false` |
+| `TRUSTED_PROXY_CIDRS` | IPs/CIDRs autorizados, separados por vírgula; obrigatório quando `TRUST_PROXY=true` | - |
 | `DATABASE_URL` | Connection string PostgreSQL | - |
 | `DATABASE_URL_DOCKER` | Connection string usada pelos containers (`postgres` como host) | - |
 | `REDIS_HOST` | Host do Redis | `localhost` |
@@ -276,6 +278,30 @@ O `mfaToken` é válido por 5 minutos, pertence a uma única tentativa, não fun
 O setup TOTP sempre retorna `secret` e o QR code como Data URL PNG. O setup EMAIL envia o código automaticamente. Um novo setup substitui qualquer configuração pendente. A ativação e a regeneração retornam exatamente 10 códigos de recuperação no formato `XXXXXXXX-XXXXXXXX`; eles são exibidos uma única vez e só uma nova regeneração produz outra lista.
 
 Erros MFA possuem códigos estáveis: `MFA_TOKEN_INVALID` e `MFA_TOKEN_EXPIRED` (`401`), `MFA_CODE_INVALID` (`401`), `MFA_METHOD_NOT_ALLOWED`, `MFA_NOT_ENABLED` e `MFA_SETUP_NOT_STARTED` (`400`), `MFA_ALREADY_ENABLED` (`409`), `MFA_ATTEMPTS_EXCEEDED` e `MFA_RATE_LIMITED` (`429`). O OpenAPI em `/docs/authentication_api/` contém exemplos de todas as etapas.
+
+### Contexto do cliente encaminhado pelo BFF
+
+Quando o fluxo passa por um BFF, ele deve encaminhar o IP e o User-Agent originais
+para `login`, `login/social`, `mfa/verify` e `refresh`:
+
+```http
+X-Forwarded-For: 200.160.2.3
+X-Original-User-Agent: Mozilla/5.0 ... Chrome/128.0
+```
+
+A API só utiliza esses headers quando `TRUST_PROXY=true` e o endereço do proxy que
+abriu a conexão consta em `TRUSTED_PROXY_CIDRS`. Clientes diretos não conseguem
+sobrescrever o IP ou o User-Agent persistido usando esses headers. O BFF deve
+sobrescrever — e não concatenar a partir de entrada não confiável —
+`X-Original-User-Agent`, e encaminhar a cadeia de IPs recebida apenas de sua
+infraestrutura de borda confiável.
+
+Exemplo para autorizar um único IP de saída do BFF:
+
+```dotenv
+TRUST_PROXY=true
+TRUSTED_PROXY_CIDRS=3.235.32.97/32
+```
 
 ### Users (CRUD)
 

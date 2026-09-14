@@ -1,6 +1,7 @@
 // ─── Environment Configuration ────────────────────────────────────────────
 
 import { z } from 'zod';
+import { isIP } from 'node:net';
 
 const booleanFromString = z.preprocess((value) => {
   if (typeof value === 'string') {
@@ -15,6 +16,27 @@ const optionalEncryptionKey = z.preprocess(
   z.string().regex(/^[0-9a-fA-F]{64}$/).optional(),
 );
 
+const trustedProxyCidrs = z.string().default('').superRefine((value, context) => {
+  for (const entry of value.split(',').map((item) => item.trim()).filter(Boolean)) {
+    const [address, prefix, ...extra] = entry.split('/');
+    const ipVersion = isIP(address);
+    const maxPrefix = ipVersion === 4 ? 32 : 128;
+    const parsedPrefix = prefix === undefined ? maxPrefix : Number(prefix);
+    if (
+      extra.length > 0 ||
+      ipVersion === 0 ||
+      !Number.isInteger(parsedPrefix) ||
+      parsedPrefix < 0 ||
+      parsedPrefix > maxPrefix
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Invalid trusted proxy IP or CIDR: ${entry}`,
+      });
+    }
+  }
+});
+
 const envSchema = z.object({
   // Server
   PORT: z.coerce.number().int().min(1).max(65535).default(3000),
@@ -22,6 +44,7 @@ const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
   TRUST_PROXY: booleanFromString.default(false),
+  TRUSTED_PROXY_CIDRS: trustedProxyCidrs,
   ENABLE_SWAGGER: booleanFromString.default(false),
 
   // Database
@@ -85,6 +108,13 @@ const envSchema = z.object({
   S3_AVATAR_BUCKET: z.string().default('authentication-api-avatars'),
   AVATAR_MAX_SIZE_MB: z.coerce.number().int().min(1).max(20).default(5),
 }).superRefine((env, context) => {
+  if (env.TRUST_PROXY && env.TRUSTED_PROXY_CIDRS.split(',').every((value) => !value.trim())) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['TRUSTED_PROXY_CIDRS'],
+      message: 'At least one trusted proxy IP or CIDR is required when TRUST_PROXY=true',
+    });
+  }
   if (env.NODE_ENV === 'production' && !env.DATA_ENCRYPTION_KEY) {
     context.addIssue({
       code: z.ZodIssueCode.custom,

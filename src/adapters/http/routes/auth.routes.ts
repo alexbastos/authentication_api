@@ -22,6 +22,7 @@ import {
   ResetPasswordBodySchema,
   ChangePasswordBodySchema,
   ResendVerificationBodySchema,
+  ForwardedClientContextHeadersSchema,
 } from '../schemas/auth.schema.js';
 
 export function registerAuthRoutes(
@@ -51,6 +52,7 @@ export function registerAuthRoutes(
       tags: ['Auth'],
       summary: 'Login with email and password',
       description: 'Authenticates the credentials. Returns type=authenticated with final session tokens when MFA is not required, or type=mfa_required with a single-use 5-minute mfaToken and the methods accepted for that attempt. TOTP accounts may use TOTP or EMAIL; EMAIL accounts may use EMAIL. RECOVERY is included only while unused recovery codes remain. The MFA challenge uses HTTP 200 and never includes access or refresh tokens. Requires email verification and includes brute-force protection (5 attempts / 15 min).',
+      headers: ForwardedClientContextHeadersSchema,
       body: LoginBodySchema,
       response: {
         200: LoginResponseSchema,
@@ -68,6 +70,7 @@ export function registerAuthRoutes(
       tags: ['Auth', 'Social Login'],
       summary: 'Login with social provider (Google, Apple, etc.)',
       description: 'Validates the social provider token and returns either a completed session or the same MFA challenge used by password login. No session token is issued before MFA succeeds.',
+      headers: ForwardedClientContextHeadersSchema,
       body: SocialLoginBodySchema,
       response: {
         200: SocialLoginResponseSchema,
@@ -177,6 +180,7 @@ export function registerAuthRoutes(
       tags: ['Auth'],
       summary: 'Refresh access token',
       description: 'Exchanges a valid refresh token for a new access token + refresh token pair. Implements token rotation: the old refresh token is invalidated.',
+      headers: ForwardedClientContextHeadersSchema,
       body: RefreshTokenBodySchema,
       response: {
         200: RefreshTokenResponseSchema,

@@ -36,6 +36,9 @@ try {
 
 export async function buildApp(env: Env, container: Container): Promise<FastifyInstance> {
   const docsEnabled = env.NODE_ENV !== 'production' || env.ENABLE_SWAGGER;
+  const trustedProxyCidrs = env.TRUST_PROXY
+    ? env.TRUSTED_PROXY_CIDRS.split(',').map((value) => value.trim()).filter(Boolean)
+    : false;
   const app = Fastify({
     logger: {
       level: env.LOG_LEVEL,
@@ -64,7 +67,9 @@ export async function buildApp(env: Env, container: Container): Promise<FastifyI
         },
       }),
     },
-    trustProxy: env.TRUST_PROXY,
+    // Forwarded addresses are honored only when every direct/intermediate proxy
+    // involved in the request is part of this explicit allowlist.
+    trustProxy: trustedProxyCidrs,
     bodyLimit: Math.max(1024 * 1024, env.AVATAR_MAX_SIZE_MB * 1024 * 1024 + 64 * 1024),
     ajv: {
       plugins: [(ajv) => {

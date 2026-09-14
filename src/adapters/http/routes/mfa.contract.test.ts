@@ -4,6 +4,7 @@ import { buildApp } from "../../../app.js";
 
 interface OpenApiOperation {
 	description?: string;
+	parameters?: Array<{ in: string; name: string; required?: boolean }>;
 	requestBody?: {
 		content: Record<string, { schema: Record<string, unknown> }>;
 	};
@@ -249,5 +250,43 @@ describe("MFA OpenAPI contract", () => {
 			maxItems: 10,
 			items: { pattern: "^[0-9A-F]{8}-[0-9A-F]{8}$" },
 		});
+	});
+
+	it("documents forwarded client context on every session-creating endpoint", () => {
+		const document = app.swagger() as unknown as MfaOpenApiDocument;
+		const operations = [
+			getOperation(
+				document,
+				"/authentication_api/api/v1/auth/login",
+				"post",
+			),
+			getOperation(
+				document,
+				"/authentication_api/api/v1/auth/login/social",
+				"post",
+			),
+			getOperation(
+				document,
+				"/authentication_api/api/v1/auth/mfa/verify",
+				"post",
+			),
+		];
+
+		for (const operation of operations) {
+			expect(operation.parameters).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						in: "header",
+						name: "x-forwarded-for",
+						required: false,
+					}),
+					expect.objectContaining({
+						in: "header",
+						name: "x-original-user-agent",
+						required: false,
+					}),
+				]),
+			);
+		}
 	});
 });
