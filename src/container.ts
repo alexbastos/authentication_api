@@ -39,6 +39,7 @@ import { AuthenticateUserUseCase } from './application/use-cases/auth/authentica
 import { AuthenticateSocialUseCase } from './application/use-cases/auth/authenticate-social.use-case.js';
 import { ValidateTokenUseCase } from './application/use-cases/auth/validate-token.use-case.js';
 import { RefreshTokenUseCase } from './application/use-cases/auth/refresh-token.use-case.js';
+import { IssueOrganizationTokenUseCase } from './application/use-cases/auth/issue-organization-token.use-case.js';
 import { RevokeTokenUseCase } from './application/use-cases/auth/revoke-token.use-case.js';
 import { VerifyEmailUseCase } from './application/use-cases/auth/verify-email.use-case.js';
 import { ResendVerificationEmailUseCase } from './application/use-cases/auth/resend-verification-email.use-case.js';
@@ -240,15 +241,27 @@ export function createContainer(env: Env): Container {
     loginHistoryRepository, dispatchEventUC, sessionRepository, geoIpService,
     mfaRepository, mfaChallengeService,
     secureTokenService,
+    env.JWT_AUDIENCE,
   );
   const authenticateSocialUC = new AuthenticateSocialUseCase(
     userRepository, refreshTokenRepository, tokenManager, socialRegistry,
     env.JWT_REFRESH_TOKEN_EXPIRY_DAYS, loginHistoryRepository, sessionRepository, geoIpService,
-    secureTokenService, mfaRepository, mfaChallengeService,
+    secureTokenService, mfaRepository, mfaChallengeService, env.JWT_AUDIENCE,
   );
   const validateTokenUC = new ValidateTokenUseCase(tokenManager, redis, userRepository, sessionRepository);
   const refreshTokenUC = new RefreshTokenUseCase(
-    userRepository, refreshTokenRepository, tokenManager, env.JWT_REFRESH_TOKEN_EXPIRY_DAYS, sessionRepository, geoIpService, secureTokenService,
+    userRepository, refreshTokenRepository, tokenManager, env.JWT_REFRESH_TOKEN_EXPIRY_DAYS, sessionRepository, geoIpService, secureTokenService, orgRepository,
+  );
+  const issueOrganizationTokenUC = new IssueOrganizationTokenUseCase(
+    orgRepository,
+    refreshTokenRepository,
+    sessionRepository,
+    tokenManager,
+    geoIpService,
+    secureTokenService,
+    env.VETORTHOPLAN_AUDIENCE,
+    env.JWT_REFRESH_TOKEN_EXPIRY_DAYS,
+    parseAccessTokenTtlSeconds(env.JWT_ACCESS_TOKEN_EXPIRY),
   );
   const revokeTokenUC = new RevokeTokenUseCase(
     tokenManager,
@@ -380,7 +393,7 @@ export function createContainer(env: Env): Container {
     validateMfaCodeUC, mfaChallengeService, tokenManager, userRepository,
     refreshTokenRepository, env.JWT_REFRESH_TOKEN_EXPIRY_DAYS,
     loginHistoryRepository, dispatchEventUC, sessionRepository, geoIpService,
-    secureTokenService,
+    secureTokenService, env.JWT_AUDIENCE,
   );
 
   // ─── Middleware ─────────────────────────────────────────────────────
@@ -400,6 +413,7 @@ export function createContainer(env: Env): Container {
     verifyEmailUC, resendVerificationEmailUC,
     requestPasswordResetUC, resetPasswordUC, changePasswordUC,
     env.APP_URL, env.VERIFICATION_TOKEN_EXPIRY_HOURS, env.PASSWORD_RESET_TOKEN_EXPIRY_HOURS,
+    issueOrganizationTokenUC,
   );
   const userController = new UserController(
     getUserUC, updateUserUC, deleteUserUC, listUsersUC,

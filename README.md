@@ -207,6 +207,7 @@ Todas as variáveis de ambiente estão documentadas no arquivo `.env.example`:
 | `JWT_ACCESS_TOKEN_EXPIRY` | TTL do access token | `15m` |
 | `JWT_REFRESH_TOKEN_EXPIRY_DAYS` | TTL do refresh token (dias) | `7` |
 | `JWT_ISSUER` | Emissor do JWT | `authentication-api` |
+| `VETORTHOPLAN_AUDIENCE` | Audiência dos tokens clínicos emitidos após seleção de organização | `vetorthoplan-api` |
 | `GOOGLE_CLIENT_ID` | Client ID do Google OAuth | - |
 | `GOOGLE_CLIENT_SECRET` | Client Secret do Google OAuth | - |
 | `BCRYPT_SALT_ROUNDS` | Rounds do bcrypt | `12` |
@@ -226,6 +227,7 @@ Todas as variáveis de ambiente estão documentadas no arquivo `.env.example`:
 | `POST` | `/api/v1/auth/login` | Login com email/senha | ❌ |
 | `POST` | `/api/v1/auth/login/social` | Login com social provider | ❌ |
 | `POST` | `/api/v1/auth/refresh` | Renovar access token | ❌ |
+| `POST` | `/api/v1/auth/organizations/:orgId/token` | Emitir token VetOrthoPlan após validar associação ativa | ✅ Bearer |
 | `POST` | `/api/v1/auth/logout` | Logout (revogar tokens) | ✅ Bearer |
 | `POST` | `/api/v1/auth/verify-email` | Verificar e-mail com token via JSON | ❌ |
 | `GET` | `/api/v1/auth/verify-email` | Verificar e-mail clicando direto no link (Retorna HTML) | ❌ |
@@ -458,8 +460,9 @@ Para adicionar um novo provedor (ex: Apple):
 
 - **Algoritmo**: RS256 (assimétrico)
 - **TTL**: 15 minutos (configurável)
-- **Conteúdo**: `sub` (userId), `email`, `role`, `jti` (unique ID), `iat`, `exp`, `iss`
+- **Conteúdo**: `sub` (userId), `email`, `role`, `jti` (unique ID), `iat`, `exp`, `iss`; tokens do VetOrthoPlan também incluem `org_id` e usam `aud=vetorthoplan-api`
 - **Verificação**: Outros serviços verificam usando a chave pública via JWKS endpoint
+- **Token clínico**: após login, o cliente chama `/api/v1/auth/organizations/:orgId/token`; o serviço confirma organização ativa e associação do usuário e emite `aud=vetorthoplan-api` com `org_id`. O refresh mantém esses dois valores e revalida a associação.
 
 ### Refresh Token
 

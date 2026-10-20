@@ -213,6 +213,17 @@ export const RefreshTokenResponseSchema = Type.Object({
   refreshToken: Type.String(),
 });
 
+export const OrganizationTokenParamsSchema = Type.Object({
+  orgId: Type.String({ minLength: 1, maxLength: 255 }),
+}, { additionalProperties: false });
+
+export const OrganizationTokenResponseSchema = Type.Object({
+  accessToken: Type.String({ description: 'RS256 token for the VetOrthoPlan API audience' }),
+  refreshToken: Type.String({ description: 'Rotating refresh token bound to this organization' }),
+  organizationId: Type.String(),
+  expiresIn: Type.Integer({ minimum: 1 }),
+}, { additionalProperties: false });
+
 // ─── Logout / Revoke ────────────────────────────────────────────────────
 
 export const LogoutBodySchema = Type.Object({

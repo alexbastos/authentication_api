@@ -79,6 +79,7 @@ export class AuthenticateUserUseCase {
     private readonly mfaRepository?: IMfaRepository,
     private readonly mfaChallengeService?: MfaChallengeService,
     private readonly secureTokenService?: ISecureTokenService,
+    private readonly defaultAudience: string = 'authentication-api',
   ) {}
 
   async execute(input: AuthenticateUserInput): Promise<AuthenticateUserOutput> {
@@ -228,6 +229,7 @@ export class AuthenticateUserUseCase {
       email: user.email,
       role: user.role,
       sid: sessionId,
+      aud: this.defaultAudience,
     });
 
     const refreshTokenValue = this.tokenManager.generateRefreshToken();
@@ -237,6 +239,7 @@ export class AuthenticateUserUseCase {
       token: this.secureTokenService?.digest(refreshTokenValue) ?? refreshTokenValue,
       userId: user.id,
       family,
+      audience: this.defaultAudience,
       userAgent: input.userAgent ?? null,
       ipAddress: input.ipAddress ?? null,
       deviceName,

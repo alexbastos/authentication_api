@@ -7,6 +7,7 @@ import type { ISessionRepository } from '../../../domain/repositories/session.re
 import type { ITokenManager } from '../../ports/token-manager.port.js';
 import type { ISecureTokenService } from '../../ports/secure-token.port.js';
 import type { IGeoIpService } from '../../ports/geo-ip.port.js';
+import type { IOrganizationRepository } from '../../../domain/repositories/organization.repository.js';
 import { RefreshToken } from '../../../domain/entities/refresh-token.entity.js';
 import {
   InvalidTokenError,
@@ -38,6 +39,7 @@ export class RefreshTokenUseCase {
     private readonly sessionRepository?: ISessionRepository,
     private readonly geoIpService?: IGeoIpService,
     private readonly secureTokenService?: ISecureTokenService,
+    private readonly organizationRepository?: IOrganizationRepository,
   ) {}
 
   async execute(input: RefreshTokenInput): Promise<RefreshTokenOutput> {
@@ -75,6 +77,21 @@ export class RefreshTokenUseCase {
       throw new UserInactiveError();
     }
 
+    // Organization-scoped refresh tokens are valid only while the organization
+    // remains active and the user remains a member.
+    if (existingToken.organizationId) {
+      const organization = await this.organizationRepository?.findById(existingToken.organizationId);
+      const membership = await this.organizationRepository?.findMember(
+        existingToken.organizationId,
+        user.id,
+      );
+      if (!organization?.isActive || !membership) {
+        await this.refreshTokenRepository.revokeAllByFamily(existingToken.family);
+        if (this.sessionRepository) await this.sessionRepository.revokeByFamily(existingToken.family);
+        throw new TokenRevokedError();
+      }
+    }
+
     // 5. Update session activity (lastSeenAt, IP, location)
     let sessionId: string | undefined;
     if (this.sessionRepository) {
@@ -103,6 +120,8 @@ export class RefreshTokenUseCase {
       token: this.secureTokenService?.digest(newRefreshTokenValue) ?? newRefreshTokenValue,
       userId: user.id,
       family: existingToken.family, // Same family for reuse detection
+      audience: existingToken.audience,
+      organizationId: existingToken.organizationId,
       userAgent: existingToken.userAgent,
       ipAddress: input.ipAddress ?? existingToken.ipAddress,
       deviceName: existingToken.deviceName,
@@ -123,6 +142,8 @@ export class RefreshTokenUseCase {
       email: user.email,
       role: user.role,
       sid: sessionId,
+      aud: existingToken.audience,
+      organizationId: existingToken.organizationId ?? undefined,
     });
 
     return {

@@ -58,6 +58,7 @@ export class JoseTokenManager implements ITokenManager {
     sid?: string;
     scopes?: string[];
     aud?: string;
+    organizationId?: string;
   }): Promise<string> {
     await this.loadKeys();
 
@@ -69,6 +70,7 @@ export class JoseTokenManager implements ITokenManager {
       ...(payload.permissions ? { permissions: payload.permissions } : {}),
       ...(payload.scopes ? { scopes: payload.scopes } : {}),
       ...(payload.sid ? { sid: payload.sid } : {}),
+      ...(payload.organizationId ? { org_id: payload.organizationId } : {}),
       jti,
     })
       .setProtectedHeader({ alg: 'RS256', kid: 'auth-key-1' })
@@ -151,6 +153,7 @@ export class JoseTokenManager implements ITokenManager {
       || typeof payload.iss !== 'string'
       || (!Array.isArray(payload.aud) && typeof payload.aud !== 'string')
       || (payload.scopes !== undefined && (!Array.isArray(payload.scopes) || payload.scopes.some((scope) => typeof scope !== 'string')))
+      || (payload.org_id !== undefined && typeof payload.org_id !== 'string')
     ) {
       throw new Error('Invalid access token type');
     }
@@ -161,6 +164,7 @@ export class JoseTokenManager implements ITokenManager {
       role: payload.role as Role,
       permissions: (payload.permissions as string[]) ?? undefined,
       sid: (payload.sid as string) ?? undefined,
+      organizationId: (payload.org_id as string) ?? undefined,
       jti: payload.jti as string,
       iat: payload.iat as number,
       exp: payload.exp as number,

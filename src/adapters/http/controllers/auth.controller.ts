@@ -14,6 +14,7 @@ import type { RequestPasswordResetUseCase } from '../../../application/use-cases
 import type { ResetPasswordUseCase } from '../../../application/use-cases/auth/reset-password.use-case.js';
 import type { ChangePasswordUseCase } from '../../../application/use-cases/auth/change-password.use-case.js';
 import type { ITokenManager } from '../../../application/ports/token-manager.port.js';
+import type { IssueOrganizationTokenUseCase } from '../../../application/use-cases/auth/issue-organization-token.use-case.js';
 import type {
   LoginBody, RegisterBody, SocialLoginBody, RefreshTokenBody,
   LogoutBody, ValidateTokenBody, VerifyEmailBody,
@@ -40,6 +41,7 @@ export class AuthController {
     private readonly appUrl: string,
     private readonly verificationTokenExpiryHours: number,
     private readonly passwordResetTokenExpiryHours: number,
+    private readonly issueOrganizationTokenUC?: IssueOrganizationTokenUseCase,
   ) {}
 
   async register(request: FastifyRequest<{ Body: RegisterBody }>, reply: FastifyReply) {
@@ -86,6 +88,25 @@ export class AuthController {
       ipAddress: client.ipAddress,
     });
 
+    return this.sendSensitiveResponse(reply, result);
+  }
+
+  async issueOrganizationToken(
+    request: FastifyRequest<{ Params: { orgId: string } }>,
+    reply: FastifyReply,
+  ) {
+    if (!this.issueOrganizationTokenUC || !request.user) {
+      throw new Error('Organization token issuance is not configured');
+    }
+    const client = resolveClientContext(request);
+    const result = await this.issueOrganizationTokenUC.execute({
+      userId: request.user.sub,
+      email: request.user.email,
+      role: request.user.role,
+      organizationId: request.params.orgId,
+      userAgent: client.userAgent,
+      ipAddress: client.ipAddress,
+    });
     return this.sendSensitiveResponse(reply, result);
   }
 

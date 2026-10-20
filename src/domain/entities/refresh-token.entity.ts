@@ -9,6 +9,8 @@ export interface RefreshTokenProps {
   userAgent: string | null;
   ipAddress: string | null;
   deviceName: string | null;
+  audience?: string;
+  organizationId?: string | null;
   expiresAt: Date;
   createdAt: Date;
   revokedAt: Date | null;
@@ -22,6 +24,8 @@ export class RefreshToken {
   readonly userAgent: string | null;
   readonly ipAddress: string | null;
   readonly deviceName: string | null;
+  readonly audience: string;
+  readonly organizationId: string | null;
   readonly expiresAt: Date;
   readonly createdAt: Date;
   private _revokedAt: Date | null;
@@ -34,6 +38,8 @@ export class RefreshToken {
     this.userAgent = props.userAgent;
     this.ipAddress = props.ipAddress;
     this.deviceName = props.deviceName;
+    this.audience = props.audience ?? 'authentication-api';
+    this.organizationId = props.organizationId ?? null;
     this.expiresAt = props.expiresAt;
     this.createdAt = props.createdAt;
     this._revokedAt = props.revokedAt;

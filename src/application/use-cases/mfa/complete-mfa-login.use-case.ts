@@ -60,6 +60,7 @@ export class CompleteMfaLoginUseCase {
 		private readonly sessionRepository?: ISessionRepository,
 		private readonly geoIpService?: IGeoIpService,
 		private readonly secureTokenService?: ISecureTokenService,
+		private readonly defaultAudience: string = "authentication-api",
 	) {}
 
 	async execute(input: CompleteMfaLoginInput): Promise<CompleteMfaLoginOutput> {
@@ -115,6 +116,7 @@ export class CompleteMfaLoginUseCase {
 			email: user.email,
 			role: user.role,
 			sid: sessionId,
+			aud: this.defaultAudience,
 		});
 		const refreshTokenValue = this.tokenManager.generateRefreshToken();
 		await this.refreshTokenRepository.create(
@@ -125,6 +127,7 @@ export class CompleteMfaLoginUseCase {
 					refreshTokenValue,
 				userId: user.id,
 				family,
+				audience: this.defaultAudience,
 				userAgent: input.userAgent ?? null,
 				ipAddress,
 				deviceName,

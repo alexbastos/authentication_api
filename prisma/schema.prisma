@@ -111,6 +111,8 @@ model RefreshToken {
   token      String    @unique @db.VarChar(500)
   userId     String    @map("user_id")
   family     String    @db.VarChar(100)
+  audience   String    @default("authentication-api") @db.VarChar(255)
+  organizationId String? @map("organization_id") @db.VarChar(255)
   userAgent  String?   @map("user_agent") @db.VarChar(500)
   ipAddress  String?   @map("ip_address") @db.VarChar(45)
   deviceName String?   @map("device_name") @db.VarChar(200)

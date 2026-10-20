@@ -11,6 +11,8 @@ import {
   SocialLoginResponseSchema,
   RefreshTokenBodySchema,
   RefreshTokenResponseSchema,
+  OrganizationTokenParamsSchema,
+  OrganizationTokenResponseSchema,
   LogoutBodySchema,
   ValidateTokenBodySchema,
   ValidateTokenResponseSchema,
@@ -188,6 +190,32 @@ export function registerAuthRoutes(
       },
     },
     handler: controller.refresh.bind(controller),
+  });
+
+  // ─── POST /authentication_api/api/v1/auth/organizations/:orgId/token ───
+  app.post<{ Params: { orgId: string } }>('/authentication_api/api/v1/auth/organizations/:orgId/token', {
+    preHandler: authMiddleware,
+    config: {
+      rateLimit: {
+        max: 10,
+        timeWindow: '1 minute',
+      },
+    },
+    schema: {
+      tags: ['Auth', 'Organizations'],
+      summary: 'Issue a VetOrthoPlan access token for an organization',
+      description: 'Requires a valid authentication-api access token. Verifies active organization membership and returns an RS256 access token for the VetOrthoPlan audience, with org_id and a separate refresh-token session.',
+      params: OrganizationTokenParamsSchema,
+      response: {
+        200: OrganizationTokenResponseSchema,
+        401: ErrorResponseSchema,
+        403: ErrorResponseSchema,
+        404: ErrorResponseSchema,
+        429: ErrorResponseSchema,
+      },
+      security: [{ bearerAuth: [] }],
+    },
+    handler: controller.issueOrganizationToken.bind(controller),
   });
 
   // ─── POST /authentication_api/api/v1/auth/logout ───────────────────────────────────────

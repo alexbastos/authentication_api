@@ -14,6 +14,7 @@ export interface TokenPayload {
   exp: number;        // Expiration
   iss: string;        // Issuer
   aud?: string;       // Audience (OAuth client_id)
+  organizationId?: string;
   scopes?: string[];
   tokenUse: 'access';
 }
@@ -53,6 +54,7 @@ export interface ITokenManager {
     sid?: string;
     scopes?: string[];
     aud?: string;
+    organizationId?: string;
   }): Promise<string>;
   generateRefreshToken(): string;
   generateMfaToken(payload: {

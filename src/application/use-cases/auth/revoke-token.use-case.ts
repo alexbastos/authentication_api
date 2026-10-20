@@ -25,7 +25,9 @@ export class RevokeTokenUseCase {
   async execute(input: RevokeTokenInput): Promise<void> {
     let payload: TokenPayload;
     try {
-      payload = await this.tokenManager.verifyAccessToken(input.accessToken);
+      // Logout accepts access tokens for any configured API audience. The
+      // session lookup below still limits revocation to the token owner's sid.
+      payload = await this.tokenManager.verifyAccessToken(input.accessToken, { allowAnyAudience: true });
     } catch {
       throw new InvalidTokenError('A valid access token is required for logout');
     }

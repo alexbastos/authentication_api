@@ -64,6 +64,7 @@ const envSchema = z.object({
   JWT_REFRESH_TOKEN_EXPIRY_DAYS: z.coerce.number().int().min(1).max(365).default(7),
   JWT_ISSUER: z.string().default('authentication-api'),
   JWT_AUDIENCE: z.string().default('authentication-api'),
+  VETORTHOPLAN_AUDIENCE: z.string().min(1).max(255).default('vetorthoplan-api'),
 
   // Google OAuth
   GOOGLE_CLIENT_ID: z.string().default(''),
