@@ -34,6 +34,57 @@ try {
   // Silent fallback
 }
 
+type SafeExceptionDiagnostic = {
+  exceptionType: string;
+  exceptionCode?: string;
+};
+
+function safeDiagnosticLabel(value: unknown, fallback: string, maxLength: number): string {
+  if (typeof value !== 'string') return fallback;
+  const label = value.trim();
+  return label.length > 0 && label.length <= maxLength && /^[A-Za-z0-9_.-]+$/.test(label)
+    ? label
+    : fallback;
+}
+
+function safeExceptionDiagnostics(error: unknown): SafeExceptionDiagnostic[] {
+  const diagnostics: SafeExceptionDiagnostic[] = [];
+  const seen = new Set<object>();
+  let current: unknown = error;
+
+  // Keep only a short, sanitized cause chain. Error messages and stacks can
+  // contain credentials, identifiers, SQL values, or other request data.
+  while (
+    typeof current === 'object'
+    && current !== null
+    && diagnostics.length < 4
+    && !seen.has(current)
+  ) {
+    seen.add(current);
+    const candidate = current as { name?: unknown; code?: unknown; cause?: unknown };
+    const exceptionType = safeDiagnosticLabel(candidate.name, 'UnknownError', 80);
+    const exceptionCode = typeof candidate.code === 'string'
+      ? safeDiagnosticLabel(candidate.code, '', 64)
+      : '';
+
+    diagnostics.push({
+      exceptionType,
+      ...(exceptionCode ? { exceptionCode } : {}),
+    });
+    current = candidate.cause;
+  }
+
+  if (diagnostics.length === 0) {
+    diagnostics.push({
+      exceptionType: error instanceof Error
+        ? safeDiagnosticLabel(error.name, 'UnknownError', 80)
+        : 'NonErrorThrown',
+    });
+  }
+
+  return diagnostics;
+}
+
 
 export async function buildApp(env: Env, container: Container): Promise<FastifyInstance> {
   const docsEnabled = env.NODE_ENV !== 'production' || env.ENABLE_SWAGGER;
@@ -402,11 +453,20 @@ Authorization: Bearer <access_token>
       });
     }
 
-    // Unexpected errors
-    logger.error(
-      { errorName: error.name, errorCode: error.code },
-      'Unexpected error',
-    );
+    // Unexpected errors: log only request context and sanitized exception
+    // type/code diagnostics. Never include the error message, stack, or payload.
+    const exceptionChain = safeExceptionDiagnostics(error);
+    const primaryException = exceptionChain[0];
+    logger.error({
+      requestId: safeDiagnosticLabel(request.id, 'UnknownRequestId', 128),
+      method: request.method,
+      route: request.routeOptions.url ?? 'unmatched',
+      statusCode: 500,
+      // Keep these fields for existing log consumers such as CAPTAGOV alerts.
+      errorName: primaryException.exceptionType,
+      ...(primaryException.exceptionCode ? { errorCode: primaryException.exceptionCode } : {}),
+      exceptionChain,
+    }, 'Unexpected error');
 
     return reply.status(500).send({
       statusCode: 500,
