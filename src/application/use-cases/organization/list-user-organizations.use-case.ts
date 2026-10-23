@@ -16,6 +16,7 @@ export class ListUserOrganizationsUseCase {
       isActive: org.isActive,
       memberRole: org.memberRole,
       createdAt: org.createdAt,
+      updatedAt: org.updatedAt,
     }));
   }
 }
