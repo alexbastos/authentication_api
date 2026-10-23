@@ -37,6 +37,14 @@ try {
 type SafeExceptionDiagnostic = {
   exceptionType: string;
   exceptionCode?: string;
+  stackFrames?: SafeStackFrame[];
+};
+
+type SafeStackFrame = {
+  file: string;
+  line: number;
+  column: number;
+  functionName?: string;
 };
 
 function safeDiagnosticLabel(value: unknown, fallback: string, maxLength: number): string {
@@ -47,13 +55,51 @@ function safeDiagnosticLabel(value: unknown, fallback: string, maxLength: number
     : fallback;
 }
 
+function safeStackFrames(stack: unknown): SafeStackFrame[] {
+  if (typeof stack !== 'string') return [];
+
+  const frames: SafeStackFrame[] = [];
+  for (const stackLine of stack.split('\n').slice(1)) {
+    const match = stackLine.match(/^\s*at (?:(.*?) \()?(.+?):(\d+):(\d+)\)?$/);
+    if (!match) continue;
+
+    // Retain only relative paths inside this application. Omit absolute paths,
+    // dependency frames, and any stack text that does not match this format.
+    const normalizedPath = match[2].replaceAll('\\', '/');
+    const stackFile = normalizedPath.startsWith('file://')
+      ? normalizedPath.slice('file://'.length)
+      : normalizedPath;
+    const relativePath = path.isAbsolute(stackFile)
+      ? path.relative(process.cwd(), stackFile).replaceAll('\\', '/')
+      : stackFile;
+    if (relativePath.startsWith('../') || relativePath === '..' || path.isAbsolute(relativePath)) continue;
+    const sourcePath = relativePath.match(/^((?:src|dist)\/[A-Za-z0-9_./-]+)$/)?.[1];
+    if (!sourcePath || sourcePath.split('/').includes('..')) continue;
+
+    const line = Number(match[3]);
+    const column = Number(match[4]);
+    if (!Number.isSafeInteger(line) || !Number.isSafeInteger(column)) continue;
+
+    const functionName = safeDiagnosticLabel(match[1], '', 128);
+    frames.push({
+      file: sourcePath,
+      line,
+      column,
+      ...(functionName ? { functionName } : {}),
+    });
+    if (frames.length >= 5) break;
+  }
+
+  return frames;
+}
+
 function safeExceptionDiagnostics(error: unknown): SafeExceptionDiagnostic[] {
   const diagnostics: SafeExceptionDiagnostic[] = [];
   const seen = new Set<object>();
   let current: unknown = error;
 
-  // Keep only a short, sanitized cause chain. Error messages and stacks can
-  // contain credentials, identifiers, SQL values, or other request data.
+  // Keep a short, sanitized cause chain. Only relative application source
+  // locations are retained from stacks; messages and raw stack text are omitted.
   while (
     typeof current === 'object'
     && current !== null
@@ -61,15 +107,17 @@ function safeExceptionDiagnostics(error: unknown): SafeExceptionDiagnostic[] {
     && !seen.has(current)
   ) {
     seen.add(current);
-    const candidate = current as { name?: unknown; code?: unknown; cause?: unknown };
+    const candidate = current as { name?: unknown; code?: unknown; cause?: unknown; stack?: unknown };
     const exceptionType = safeDiagnosticLabel(candidate.name, 'UnknownError', 80);
     const exceptionCode = typeof candidate.code === 'string'
       ? safeDiagnosticLabel(candidate.code, '', 64)
       : '';
+    const stackFrames = safeStackFrames(candidate.stack);
 
     diagnostics.push({
       exceptionType,
       ...(exceptionCode ? { exceptionCode } : {}),
+      ...(stackFrames.length > 0 ? { stackFrames } : {}),
     });
     current = candidate.cause;
   }
@@ -453,8 +501,9 @@ Authorization: Bearer <access_token>
       });
     }
 
-    // Unexpected errors: log only request context and sanitized exception
-    // type/code diagnostics. Never include the error message, stack, or payload.
+    // Unexpected errors: log request context plus sanitized exception types,
+    // codes, and relative application stack locations. Never log messages,
+    // raw stack text, or payloads.
     const exceptionChain = safeExceptionDiagnostics(error);
     const primaryException = exceptionChain[0];
     logger.error({
