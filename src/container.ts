@@ -413,7 +413,7 @@ export function createContainer(env: Env): Container {
     verifyEmailUC, resendVerificationEmailUC,
     requestPasswordResetUC, resetPasswordUC, changePasswordUC,
     env.APP_URL, env.VERIFICATION_TOKEN_EXPIRY_HOURS, env.PASSWORD_RESET_TOKEN_EXPIRY_HOURS,
-    issueOrganizationTokenUC,
+    issueOrganizationTokenUC, env.AUTH_APP_URLS,
   );
   const userController = new UserController(
     getUserUC, updateUserUC, deleteUserUC, listUsersUC,

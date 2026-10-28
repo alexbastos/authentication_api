@@ -37,7 +37,7 @@ export function registerAuthRoutes(
     schema: {
       tags: ['Auth'],
       summary: 'Register a new user',
-      description: 'Creates a new user account with email and password. Validates password complexity. Sends a verification email automatically.',
+      description: 'Creates a new user account with email and password. Validates password complexity. Sends a verification email automatically. Optional applicationId selects a configured, allowlisted frontend URL; when omitted, APP_URL preserves the legacy default.',
       body: RegisterBodySchema,
       response: {
         201: RegisterResponseSchema,
@@ -110,10 +110,11 @@ export function registerAuthRoutes(
     schema: {
       tags: ['Auth', 'Email Verification'],
       summary: 'Resend verification email',
-      description: 'Resends the verification email to the given address. Always returns success to prevent user enumeration.\n\n**Security Protections:**\n- Rate Limited to 3 requests per 15 minutes per IP.\n- Cooldown mechanism: will silently ignore requests if the last token was generated less than 2 minutes ago.',
+      description: 'Resends the verification email to the given address. Optional applicationId selects a configured frontend URL. Always returns success to prevent user enumeration.\n\n**Security Protections:**\n- Rate Limited to 3 requests per 15 minutes per IP.\n- Cooldown mechanism: will silently ignore requests if the last token was generated less than 2 minutes ago.',
       body: ResendVerificationBodySchema,
       response: {
         200: MessageResponseSchema,
+        400: ErrorResponseSchema,
         429: ErrorResponseSchema,
       },
     },
@@ -131,10 +132,11 @@ export function registerAuthRoutes(
     schema: {
       tags: ['Auth', 'Password Recovery'],
       summary: 'Request password reset',
-      description: 'Sends a password reset email to the given address. Always returns success to prevent user enumeration. Token expires in 1 hour. Limited to 3 requests per 15 minutes per network identity.',
+      description: 'Sends a password reset email to the given address. Optional applicationId selects a configured frontend URL. Always returns success to prevent user enumeration. Token expires in 1 hour. Limited to 3 requests per 15 minutes per network identity.',
       body: ForgotPasswordBodySchema,
       response: {
         200: MessageResponseSchema,
+        400: ErrorResponseSchema,
         429: ErrorResponseSchema,
       },
     },

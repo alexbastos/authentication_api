@@ -18,7 +18,7 @@ export class AwsSesEmailService implements IEmailService {
   }
 
   async sendVerificationEmail(to: string, name: string, token: string): Promise<void> {
-    const link = `${this.appUrl}/verify-email?token=${token}`;
+    const link = `${this.appUrl.trim().replace(/\/+$/, '')}/verify-email?token=${encodeURIComponent(token)}`;
     
     const command = new SendEmailCommand({
       Source: this.sourceEmail,
@@ -58,7 +58,7 @@ export class AwsSesEmailService implements IEmailService {
   }
 
   async sendPasswordResetEmail(to: string, name: string, token: string): Promise<void> {
-    const link = `${this.appUrl}/reset-password?token=${token}`;
+    const link = `${this.appUrl.trim().replace(/\/+$/, '')}/reset-password?token=${encodeURIComponent(token)}`;
 
     const command = new SendEmailCommand({
       Source: this.sourceEmail,

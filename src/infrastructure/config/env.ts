@@ -37,6 +37,15 @@ const trustedProxyCidrs = z.string().default('').superRefine((value, context) =>
   }
 });
 
+const authAppUrls = z.preprocess((value) => {
+  if (typeof value !== 'string') return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
+}, z.record(z.string().regex(/^[a-z0-9][a-z0-9._-]{0,79}$/), z.string().url()).default({}));
+
 const envSchema = z.object({
   // Server
   PORT: z.coerce.number().int().min(1).max(65535).default(3000),
@@ -82,6 +91,8 @@ const envSchema = z.object({
 
   // Frontend URL (used for email links — must point to the frontend app, NOT the API)
   APP_URL: z.string().default('http://localhost:3001'),
+  // Optional allowlist for app-specific account email links.
+  AUTH_APP_URLS: authAppUrls,
 
   // Email Configuration
   EMAIL_PROVIDER: z.enum(['console', 'ses']).default('console'),
@@ -128,6 +139,19 @@ const envSchema = z.object({
   }
   if (env.NODE_ENV === 'production' && env.EMAIL_PROVIDER === 'console') {
     context.addIssue({ code: z.ZodIssueCode.custom, path: ['EMAIL_PROVIDER'], message: 'Console email provider is forbidden in production' });
+  }
+  for (const [applicationId, appUrl] of Object.entries(env.AUTH_APP_URLS)) {
+    const parsed = new URL(appUrl);
+    if (
+      (env.NODE_ENV === 'production' && parsed.protocol !== 'https:') ||
+      !['http:', 'https:'].includes(parsed.protocol) || parsed.search || parsed.hash
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['AUTH_APP_URLS'],
+        message: `Invalid verification frontend URL configured for application ${applicationId}`,
+      });
+    }
   }
   if (env.NODE_ENV === 'production' && !env.REDIS_PASSWORD) {
     context.addIssue({ code: z.ZodIssueCode.custom, path: ['REDIS_PASSWORD'], message: 'Redis authentication is required in production' });

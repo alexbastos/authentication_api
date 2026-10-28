@@ -42,14 +42,17 @@ export class AuthController {
     private readonly verificationTokenExpiryHours: number,
     private readonly passwordResetTokenExpiryHours: number,
     private readonly issueOrganizationTokenUC?: IssueOrganizationTokenUseCase,
+    private readonly authAppUrls: Record<string, string> = {},
   ) {}
 
   async register(request: FastifyRequest<{ Body: RegisterBody }>, reply: FastifyReply) {
+    const appUrl = this.selectAppUrl(request.body.applicationId);
+    if (!appUrl) return this.unconfiguredAppResponse(reply);
     const result = await this.registerUserUC.execute({
       name: request.body.name,
       email: request.body.email,
       password: request.body.password,
-      appUrl: this.appUrl,
+      appUrl,
       verificationTokenExpiryHours: this.verificationTokenExpiryHours,
     });
 
@@ -116,6 +119,19 @@ export class AuthController {
     return reply.status(200).send(payload);
   }
 
+  private selectAppUrl(applicationId?: string): string | undefined {
+    return applicationId ? this.authAppUrls[applicationId] : this.appUrl;
+  }
+
+  private unconfiguredAppResponse(reply: FastifyReply) {
+    return reply.status(400).send({
+      statusCode: 400,
+      error: 'Bad Request',
+      code: 'AUTH_APP_URL_UNCONFIGURED',
+      message: 'The requested application has no configured account email URL',
+    });
+  }
+
   async logout(request: FastifyRequest<{ Body: LogoutBody }>, reply: FastifyReply) {
     const authHeader = request.headers.authorization;
     const accessToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : '';
@@ -152,9 +168,11 @@ export class AuthController {
   }
 
   async resendVerification(request: FastifyRequest<{ Body: ResendVerificationBody }>, reply: FastifyReply) {
+    const appUrl = this.selectAppUrl(request.body.applicationId);
+    if (!appUrl) return this.unconfiguredAppResponse(reply);
     const result = await this.resendVerificationEmailUC.execute({
       email: request.body.email,
-      appUrl: this.appUrl,
+      appUrl,
       expiryHours: this.verificationTokenExpiryHours,
     });
 
@@ -162,9 +180,11 @@ export class AuthController {
   }
 
   async forgotPassword(request: FastifyRequest<{ Body: ForgotPasswordBody }>, reply: FastifyReply) {
+    const appUrl = this.selectAppUrl(request.body.applicationId);
+    if (!appUrl) return this.unconfiguredAppResponse(reply);
     const result = await this.requestPasswordResetUC.execute({
       email: request.body.email,
-      appUrl: this.appUrl,
+      appUrl,
       expiryHours: this.passwordResetTokenExpiryHours,
     });
 

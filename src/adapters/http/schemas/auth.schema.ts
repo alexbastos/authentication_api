@@ -108,6 +108,12 @@ export type LoginBody = Static<typeof LoginBodySchema>;
 export const RegisterBodySchema = Type.Object({
   name: Type.String({ minLength: 2, maxLength: 100, description: 'Full name' }),
   email: Type.String({ format: 'email', description: 'Email address (must be unique)' }),
+  applicationId: Type.Optional(Type.String({
+    minLength: 1,
+    maxLength: 80,
+    pattern: '^[a-z0-9][a-z0-9._-]*$',
+    description: 'Configured application key used to select its email verification link',
+  })),
   password: Type.String({
     minLength: 8,
     maxLength: 72,
@@ -137,6 +143,7 @@ export type VerifyEmailBody = Static<typeof VerifyEmailBodySchema>;
 
 export const ResendVerificationBodySchema = Type.Object({
   email: Type.String({ format: 'email', description: 'User email address' }),
+  applicationId: Type.Optional(Type.String({ minLength: 1, maxLength: 80, pattern: '^[a-z0-9][a-z0-9._-]*$' })),
 });
 export type ResendVerificationBody = Static<typeof ResendVerificationBodySchema>;
 
@@ -144,6 +151,7 @@ export type ResendVerificationBody = Static<typeof ResendVerificationBodySchema>
 
 export const ForgotPasswordBodySchema = Type.Object({
   email: Type.String({ format: 'email', description: 'Email address of the account to recover' }),
+  applicationId: Type.Optional(Type.String({ minLength: 1, maxLength: 80, pattern: '^[a-z0-9][a-z0-9._-]*$' })),
 });
 export type ForgotPasswordBody = Static<typeof ForgotPasswordBodySchema>;
 

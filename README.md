@@ -238,6 +238,8 @@ Todas as variáveis de ambiente estão documentadas no arquivo `.env.example`:
 | `POST` | `/api/v1/auth/validate` | Validar token (API Gateway) | ❌ |
 | `GET` | `/api/v1/auth/.well-known/jwks.json` | Chaves públicas (JWKS) | ❌ |
 
+Registro, reenvio de verificação e recuperação de senha aceitam `applicationId` opcional para escolher a origem frontend, por exemplo `vetorthoplan` ou `captagov`. Configure `AUTH_APP_URLS` como um objeto JSON com chaves de aplicação e origens permitidas. O cliente não fornece uma URL livre: uma chave ausente na allowlist recebe `400 AUTH_APP_URL_UNCONFIGURED`. Clientes existentes que omitem `applicationId` continuam usando `APP_URL`. Cada frontend deve enviar seu identificador nessas solicitações para receber links do próprio produto.
+
 ### Autenticação 2FA (MFA)
 
 | Método | Endpoint | Descrição | Auth |
@@ -353,6 +355,8 @@ O upload usa `multipart/form-data` com o campo obrigatório `avatar`. A URL reto
 | `GET` | `/api/v1/users/me/login-history` | Histórico de tentativas de login | ✅ Bearer |
 | `POST` | `/api/v1/users/me/social` | Vincular nova conta social | ✅ Bearer |
 | `DELETE` | `/api/v1/users/me/social/:provider` | Desvincular conta social | ✅ Bearer |
+
+Cada login bem-sucedido cria uma sessão independente para o dispositivo/aplicação. Sessões simultâneas são suportadas; um novo login não revoga os demais. A revogação pode ser feita individualmente pelo endpoint de sessões. Isso preserva sessões do CaptaGov quando o mesmo usuário entra no VetOrthoPlan e permite que uma identidade mantenha vínculos em várias organizações. A escolha de organização permanece no fluxo de emissão do token clínico e não altera os vínculos da conta.
 
 ### Client Apps
 
